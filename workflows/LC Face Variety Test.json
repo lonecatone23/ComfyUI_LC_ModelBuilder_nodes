@@ -1,0 +1,437 @@
+{
+  "id": "4362f87a-e03c-4dc6-b3e9-2111c976df6e",
+  "revision": 0,
+  "last_node_id": 6,
+  "last_link_id": 4,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "MarkdownNote",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        560,
+        1180
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "## LC Face Variety Test 🧑‍🤝‍🧑\n\n### ✋ Read this first\n- Make a folder of test images and put its name (or full path) in **folder_path**. Quotes, / or \\ all work. Default is **ComfyUI/input/face_test**.\n- Same prompt, different seeds. 8 or more images. One seed is not a datapoint.\n- Keep the prompt plain (\"a photo of a woman in a cafe\"). No age, no hair color. Let the model choose.\n\n**LC Image Batch From Folder 📂**\n- Loads the folder in alphabetical order (img2 before img10).\n- **max_images**: 0 = all. Lower it if you run out of memory.\n- **start_index**: skip the first X images.\n\n**LC Face Variety Scorer 🧑‍🤝‍🧑**\n- Compares every face against every other face. Only the face, not hair, clothes or lighting.\n- **score**: 0.0 - 1.0, **lower = more variety**.\n\n| Score | What it looks like |\n|---|---|\n| 0.0 - 0.2 | Clearly different people |\n| 0.2 - 0.35 | Different people who share a few features |\n| 0.35 - 0.5 | Could be sisters, or the same person in a different photo |\n| 0.5 - 1.0 | Same person |\n\n- **crowd_score**: same scale, for the faces inside each group shot. -1 = no group shots.\n- 💡 Compare models with the same prompts and seeds. The number means the most next to another model's number.\n\n⚠️ First run downloads InsightFace **buffalo_l** (~280 MB) into **ComfyUI/models/insightface/models/buffalo_l**. Already have it (IPAdapter FaceID, ReActor)? Nothing downloads.\n\nFace models: [InsightFace](https://github.com/deepinsight/insightface) (ArcFace + SCRFD). Non-commercial research license.\n\n---\n\n## LC 人脸多样性测试 🧑‍🤝‍🧑\n\n### ✋ 请先阅读\n- 准备一个测试图片文件夹，把文件夹名称（或完整路径）填入 **folder_path**。引号、/ 或 \\ 都可以。默认是 **ComfyUI/input/face_test**。\n- 同一个提示词，不同的种子，至少 8 张图片。一个种子不能算数据。\n- 提示词保持简单（\"a photo of a woman in a cafe\"）。不写年龄，不写发色，让模型自己决定。\n\n**LC Image Batch From Folder 📂**\n- 按字母顺序加载文件夹（img2 在 img10 之前）。\n- **max_images**：0 = 全部。显存不够时请调低。\n- **start_index**：跳过前 X 张图片。\n\n**LC Face Variety Scorer 🧑‍🤝‍🧑**\n- 把每张脸和其他所有脸进行比较。只看脸，不看头发、衣服或光线。\n- **score**：0.0 - 1.0，**越低 = 越多样**。\n\n| 分数 | 看起来像 |\n|---|---|\n| 0.0 - 0.2 | 明显是不同的人 |\n| 0.2 - 0.35 | 不同的人，但有一些相似特征 |\n| 0.35 - 0.5 | 可能是姐妹，或同一个人的不同照片 |\n| 0.5 - 1.0 | 同一个人 |\n\n- **crowd_score**：同样的分数范围，用于每张合影中的人脸。-1 = 没有合影。\n- 💡 比较模型时使用相同的提示词和种子。这个分数只有和其他模型的分数放在一起比较才最有意义。\n\n⚠️ 第一次运行会下载 InsightFace **buffalo_l**（约 280 MB）到 **ComfyUI/models/insightface/models/buffalo_l**。如果已经有了（IPAdapter FaceID、ReActor），就不会再下载。\n\n人脸模型：[InsightFace](https://github.com/deepinsight/insightface)（ArcFace + SCRFD）。仅限非商业研究用途。"
+      ],
+      "widgets_values_named": {
+        "text": "## LC Face Variety Test 🧑‍🤝‍🧑\n\n### ✋ Read this first\n- Make a folder of test images and put its name (or full path) in **folder_path**. Quotes, / or \\ all work. Default is **ComfyUI/input/face_test**.\n- Same prompt, different seeds. 8 or more images. One seed is not a datapoint.\n- Keep the prompt plain (\"a photo of a woman in a cafe\"). No age, no hair color. Let the model choose.\n\n**LC Image Batch From Folder 📂**\n- Loads the folder in alphabetical order (img2 before img10).\n- **max_images**: 0 = all. Lower it if you run out of memory.\n- **start_index**: skip the first X images.\n\n**LC Face Variety Scorer 🧑‍🤝‍🧑**\n- Compares every face against every other face. Only the face, not hair, clothes or lighting.\n- **score**: 0.0 - 1.0, **lower = more variety**.\n\n| Score | What it looks like |\n|---|---|\n| 0.0 - 0.2 | Clearly different people |\n| 0.2 - 0.35 | Different people who share a few features |\n| 0.35 - 0.5 | Could be sisters, or the same person in a different photo |\n| 0.5 - 1.0 | Same person |\n\n- **crowd_score**: same scale, for the faces inside each group shot. -1 = no group shots.\n- 💡 Compare models with the same prompts and seeds. The number means the most next to another model's number.\n\n⚠️ First run downloads InsightFace **buffalo_l** (~280 MB) into **ComfyUI/models/insightface/models/buffalo_l**. Already have it (IPAdapter FaceID, ReActor)? Nothing downloads.\n\nFace models: [InsightFace](https://github.com/deepinsight/insightface) (ArcFace + SCRFD). Non-commercial research license.\n\n---\n\n## LC 人脸多样性测试 🧑‍🤝‍🧑\n\n### ✋ 请先阅读\n- 准备一个测试图片文件夹，把文件夹名称（或完整路径）填入 **folder_path**。引号、/ 或 \\ 都可以。默认是 **ComfyUI/input/face_test**。\n- 同一个提示词，不同的种子，至少 8 张图片。一个种子不能算数据。\n- 提示词保持简单（\"a photo of a woman in a cafe\"）。不写年龄，不写发色，让模型自己决定。\n\n**LC Image Batch From Folder 📂**\n- 按字母顺序加载文件夹（img2 在 img10 之前）。\n- **max_images**：0 = 全部。显存不够时请调低。\n- **start_index**：跳过前 X 张图片。\n\n**LC Face Variety Scorer 🧑‍🤝‍🧑**\n- 把每张脸和其他所有脸进行比较。只看脸，不看头发、衣服或光线。\n- **score**：0.0 - 1.0，**越低 = 越多样**。\n\n| 分数 | 看起来像 |\n|---|---|\n| 0.0 - 0.2 | 明显是不同的人 |\n| 0.2 - 0.35 | 不同的人，但有一些相似特征 |\n| 0.35 - 0.5 | 可能是姐妹，或同一个人的不同照片 |\n| 0.5 - 1.0 | 同一个人 |\n\n- **crowd_score**：同样的分数范围，用于每张合影中的人脸。-1 = 没有合影。\n- 💡 比较模型时使用相同的提示词和种子。这个分数只有和其他模型的分数放在一起比较才最有意义。\n\n⚠️ 第一次运行会下载 InsightFace **buffalo_l**（约 280 MB）到 **ComfyUI/models/insightface/models/buffalo_l**。如果已经有了（IPAdapter FaceID、ReActor），就不会再下载。\n\n人脸模型：[InsightFace](https://github.com/deepinsight/insightface)（ArcFace + SCRFD）。仅限非商业研究用途。"
+      },
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 2,
+      "type": "LCImageBatchFromFolder",
+      "pos": [
+        600,
+        0
+      ],
+      "size": [
+        320,
+        214
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "folder_path",
+          "name": "folder_path",
+          "type": "STRING",
+          "widget": {
+            "name": "folder_path"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "start_index",
+          "name": "start_index",
+          "type": "INT",
+          "widget": {
+            "name": "start_index"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "max_images",
+          "name": "max_images",
+          "type": "INT",
+          "widget": {
+            "name": "max_images"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "size_mode",
+          "name": "size_mode",
+          "type": "COMBO",
+          "widget": {
+            "name": "size_mode"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "include_subfolders",
+          "name": "include_subfolders",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "include_subfolders"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            1
+          ]
+        },
+        {
+          "localized_name": "count",
+          "name": "count",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "total_found",
+          "name": "total_found",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "filenames",
+          "name": "filenames",
+          "type": "STRING",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "ComfyUI_LC123_nodes",
+        "Node name for S&R": "LCImageBatchFromFolder"
+      },
+      "widgets_values": [
+        "face_test",
+        0,
+        0,
+        "crop",
+        false
+      ],
+      "widgets_values_named": {
+        "folder_path": "face_test",
+        "start_index": 0,
+        "max_images": 0,
+        "size_mode": "crop",
+        "include_subfolders": false
+      },
+      "color": "#324B4B",
+      "bgcolor": "#324B4B"
+    },
+    {
+      "id": 3,
+      "type": "LCFaceVarietyScorer",
+      "pos": [
+        960,
+        0
+      ],
+      "size": [
+        300,
+        226
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 1
+        },
+        {
+          "localized_name": "same_threshold",
+          "name": "same_threshold",
+          "type": "FLOAT",
+          "widget": {
+            "name": "same_threshold"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "min_face_px",
+          "name": "min_face_px",
+          "type": "INT",
+          "widget": {
+            "name": "min_face_px"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "device",
+          "name": "device",
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "score",
+          "name": "score",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "localized_name": "same_pct",
+          "name": "same_pct",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "localized_name": "crowd_score",
+          "name": "crowd_score",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "localized_name": "grade",
+          "name": "grade",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "report",
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            2
+          ]
+        },
+        {
+          "localized_name": "faces",
+          "name": "faces",
+          "type": "IMAGE",
+          "links": [
+            3
+          ]
+        },
+        {
+          "localized_name": "faces_found",
+          "name": "faces_found",
+          "type": "INT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "LCFaceVarietyScorer"
+      },
+      "widgets_values": [
+        0.35,
+        40,
+        "cpu"
+      ],
+      "widgets_values_named": {
+        "same_threshold": 0.35,
+        "min_face_px": 40,
+        "device": "cpu"
+      },
+      "color": "#5a4a1a",
+      "bgcolor": "#5a4a1a"
+    },
+    {
+      "id": 4,
+      "type": "PreviewAny",
+      "pos": [
+        600,
+        260
+      ],
+      "size": [
+        320,
+        360
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "source",
+          "name": "source",
+          "type": "*",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "STRING",
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "File order",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [],
+      "widgets_values_named": {}
+    },
+    {
+      "id": 5,
+      "type": "PreviewAny",
+      "pos": [
+        1300,
+        0
+      ],
+      "size": [
+        460,
+        420
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "source",
+          "name": "source",
+          "type": "*",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "STRING",
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "Report",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [],
+      "widgets_values_named": {}
+    },
+    {
+      "id": 6,
+      "type": "PreviewImage",
+      "pos": [
+        1300,
+        460
+      ],
+      "size": [
+        460,
+        420
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfy-core",
+        "Node name for S&R": "PreviewImage"
+      }
+    }
+  ],
+  "links": [
+    [
+      1,
+      2,
+      0,
+      3,
+      0,
+      "IMAGE"
+    ],
+    [
+      2,
+      3,
+      4,
+      5,
+      0,
+      "STRING"
+    ],
+    [
+      3,
+      3,
+      5,
+      6,
+      0,
+      "IMAGE"
+    ],
+    [
+      4,
+      2,
+      3,
+      4,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "ds": {
+      "scale": 0.8,
+      "offset": [
+        40,
+        60
+      ]
+    }
+  },
+  "version": 0.4
+}

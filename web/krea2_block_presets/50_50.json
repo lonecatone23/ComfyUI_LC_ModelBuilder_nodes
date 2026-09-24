@@ -1,0 +1,16 @@
+{
+  "name": "50_50",
+  "blocks": "0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5",
+  "named": {
+    "first": 0.5,
+    "tmlp": 0.5,
+    "txtmlp": 0.5,
+    "tproj": 0.5,
+    "txtfusion_layer0": 0.5,
+    "txtfusion_layer1": 0.5,
+    "txtfusion_projector": 0.5,
+    "txtfusion_refiner0": 0.5,
+    "txtfusion_refiner1": 0.5,
+    "last": 0.5
+  }
+}

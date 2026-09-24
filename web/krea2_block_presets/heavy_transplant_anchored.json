@@ -1,0 +1,16 @@
+{
+  "name": "heavy_transplant_anchored",
+  "blocks": "0.1, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9",
+  "named": {
+    "first": 0.1,
+    "tmlp": 0.5,
+    "txtmlp": 0.5,
+    "tproj": 0.15,
+    "txtfusion_layer0": 0.85,
+    "txtfusion_layer1": 0.85,
+    "txtfusion_projector": 0.85,
+    "txtfusion_refiner0": 0.85,
+    "txtfusion_refiner1": 0.85,
+    "last": 0.9
+  }
+}
