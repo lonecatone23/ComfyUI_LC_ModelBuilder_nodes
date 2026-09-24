@@ -1,0 +1,15 @@
+.git/
+.gitignore
+.comfyignore
+__pycache__/
+*.py[cod]
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+install_backups/
+node.zip
+.git_WRONG_NESTED/
