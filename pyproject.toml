@@ -1,6 +1,6 @@
 [project]
 name = "ComfyUI_LC_ModelBuilder_nodes"
-version = "0.2.0"
+version = "0.2.1"
 description = "ComfyUI LC Modelbuilder Nodes by lonecatone23 — checkpoint/model merging tools. Starts with LC Krea2 Block Merge Advanced (per-block ratio curve + named-region sliders, reuses ComfyUI's own block-merge patching), checkpoint savers, and LC Face Variety Scorer (same-face test with InsightFace buffalo_l via onnxruntime). Companion to ComfyUI_LC123_nodes; separate Registry name."
 readme = "README.md"
 requires-python = ">=3.10"
