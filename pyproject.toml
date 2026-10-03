@@ -1,6 +1,6 @@
 [project]
 name = "ComfyUI_LC_ModelBuilder_nodes"
-version = "0.3.0"
+version = "0.3.1"
 description = "ComfyUI LC Modelbuilder Nodes by lonecatone23 — checkpoint/model merging tools. Starts with LC Krea2 Block Merge Advanced (per-block ratio curve + named-region sliders, reuses ComfyUI's own block-merge patching), checkpoint savers, LC Face Variety Scorer (same-face test with InsightFace buffalo_l via onnxruntime), and LC Krea2 LoRA Editor + LC LoRA Save + LC Krea2 LoRA Block Scan + LC Krea2 LoRA Merge (find a LoRA's face-lock blocks, edit them per block, attention / MLP and spikes, merge two LoRAs per block, save as a standard LoRA). Companion to ComfyUI_LC123_nodes; separate Registry name."
 readme = "README.md"
 requires-python = ">=3.10"
