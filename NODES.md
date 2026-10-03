@@ -7,5 +7,9 @@ Registered class IDs:
 * LCCheckpointSave
 * LCDiffusionModelSave
 * LCFaceVarietyScorer
+* LCKrea2LoRAEditor
+* LCLoRASave
+* LCKrea2LoRABlockScan
+* LCKrea2LoRAMerge
 
 Comfy Registry discovers nodes from NODE_CLASS_MAPPINGS at publish time.

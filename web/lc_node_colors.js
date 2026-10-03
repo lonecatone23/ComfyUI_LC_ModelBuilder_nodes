@@ -14,6 +14,10 @@ const COLORS = {
     LCCheckpointSave: { color: "#3a3a2a", bgcolor: "#3a3a2a" },
     LCDiffusionModelSave: { color: "#3a3a2a", bgcolor: "#3a3a2a" },
     LCFaceVarietyScorer: { color: "#5a4a1a", bgcolor: "#5a4a1a" },
+    LCKrea2LoRAEditor: { color: "#6a5220", bgcolor: "#6a5220" },
+    LCLoRASave: { color: "#3a3a2a", bgcolor: "#3a3a2a" },
+    LCKrea2LoRABlockScan: { color: "#6a5220", bgcolor: "#6a5220" },
+    LCKrea2LoRAMerge: { color: "#6a5220", bgcolor: "#6a5220" },
 };
 
 app.registerExtension({

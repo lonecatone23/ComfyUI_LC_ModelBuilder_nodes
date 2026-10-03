@@ -11,6 +11,10 @@ Model and checkpoint merging tools by lonecatone23. Companion pack to [ComfyUI_L
 | LC Checkpoint Save | All-in-one checkpoint saver — model + clip + vae, all required. Adds an `enabled` toggle and a per-save `embed_workflow` toggle that core's stock Save Checkpoint node doesn't have. |
 | LC Diffusion Model Save | Same as LC Checkpoint Save but model-only — no clip/vae sockets at all. |
 | LC Face Variety Scorer 🧑‍🤝‍🧑 | Same-face test for a model. Scores how different the faces in an image batch are (0.0 - 1.0, lower = more variety), plus a group-shot score and a grid of the faces it found. |
+| LC Krea2 LoRA Editor | 🧪 **BETA, still in testing.** Load a Krea 2 LoRA with each of the 28 blocks turned up or down, attention and MLP scaled separately, and spikes softened. Patches the model like a LoRA loader and outputs the edited LoRA. For face lock and for LoRAs that change the whole image. |
+| LC LoRA Save | 🧪 **BETA, still in testing.** Saves an edited LoRA as a standard file with every edit baked in, optionally at a new rank. |
+| LC Krea2 LoRA Block Scan | 🧪 **BETA, still in testing.** Finds where a LoRA locks the face or changes the whole image: renders a seed batch with each block group turned off, scores every row, and suggests a block curve for the Editor. |
+| LC Krea2 LoRA Merge | 🧪 **BETA, still in testing.** Merges two to four Krea 2 LoRAs with a per-block A / B curve (sum or TIES), applies the result like a LoRA loader and outputs it for LC LoRA Save. |
 
 ### LC Krea2 Block Merge Advanced
 
@@ -46,6 +50,49 @@ Not a merge — this one takes a single checkpoint and turns specific regions up
 - **`low_blocks` / `mid_blocks` / `high_blocks`**: scale the same three zones (0-8 / 9-17 / 18-27) as Block Merge Advanced's graph. 💡 Krea2's 28 blocks are architecturally uniform — unlike SDXL's UNet, there's no verified evidence they specialize by depth, so this node doesn't invent named sub-groups the way Arthemy's SDXL tuner does. `blocks_override` (a 28-value comma list) is there if you want finer control than three zones.
 - **10 named-region sliders**: same prefixes, same tooltips as Block Merge Advanced.
 - **`base_scale`**: fallback multiplier for anything that isn't one of the 28 blocks or the 10 named regions.
+
+### LC Krea2 LoRA Editor / LC LoRA Save
+
+**⚠️🧪 BETA: still in testing**
+
+- The four LoRA nodes (**Editor**, **LoRA Save**, **Block Scan** and **Merge**) work, but they are still being tested on more LoRAs.
+- Presets, defaults and settings can change between versions. A saved workflow may need its bars set again after an update.
+- Test every edit on a fixed seed before you save, and always keep your original LoRA files.
+- Found something odd? Open an issue on this repo with the LoRA name and your settings.
+
+Edit a LoRA instead of retraining it. The Editor sits where a LoRA loader would (model in, model out, into your sampler), so you can test every edit on a fixed seed before you save anything.
+
+- **Block bars**: 28 bars, 0 to 2 (1 = unchanged). Drag or sweep across them; double-click or shift-click a bar to reset it to 1. The grey columns behind the bars show how strong the LoRA is in each block.
+- **`preset`**: `Blocks X-Y down` sets one block group to 0.3. Face lock sits in different blocks for each LoRA (Better Lip Bite: 16-21, Krea Amateur V4: 4-9), so try each group on the same seed batch and keep the one that frees the face. `Tame` sets blocks 4-15 to 0.7.
+- **`attention` / `mlp` / `outside_blocks`**: scale the attention layers, the MLP layers, or anything outside the 28 blocks (text fusion) in one go.
+- **`spike_soften`**: `layers` pulls a layer that is far stronger than the same layer in the other blocks down to `spike_limit` x their median. `directions` flattens the one direction that dominates a layer to `spike_limit` x the next one (well-behaved LoRAs sit around 2). `directions` works on plain lora_A / lora_B files.
+- **`blocks_in`**: wire a 28-block curve here (for example the Block Scan's `blocks` output) and it replaces the preset and the bars.
+- **Heatmap**: after a run, 8 layer rows x 28 blocks, before and after on the same scale, plus a note (layers applied, rank, how much strength is left).
+
+Tested on Better Lip Bite, which both locks the face and changes the whole image (LPIPS against the base model, person / background, 4 seeds; same-face score over 8 seeds):
+
+| Edit | Same face | Person change | Background change |
+|---|---|---|---|
+| Base model, no LoRA | 0.445 | | |
+| LoRA as is | 0.510 | 0.571 | 0.564 |
+| Blocks 16-21 down | 0.423 | 0.518 | 0.501 |
+| Blocks 16-21 at 0.3, 4-15 at 0.7, directions at 2 | 0.464 | 0.419 | 0.262 |
+
+💡 For comparison, the well-behaved Braces LoRA changes the background by 0.260, so the last row brings Lip Bite down to that level.
+
+**LC Krea2 LoRA Block Scan** does the block hunting for you. It renders the same seed batch with no LoRA, with the full LoRA, and with the LoRA turned off in one block group at a time (`groups`, default `0-3, 4-9, 10-15, 16-21, 22-27, fusion`). Then it scores every row: the same-face score (the LC Face Variety Scorer's face models, so it needs onnxruntime), and how far each row moved from the base model and from the full LoRA. You get a labeled grid, a report, and a suggested curve (`blocks`) that sets the group that frees the face most to 0.3. A group only counts when it lowers the same-face score by 0.03 or more, since 8 seeds wobble by about 0.02. Use a prompt with one clear face. Each row is one batch, so 6 groups at 8 images is 64 renders.
+
+**LC Krea2 LoRA Merge** combines two to four LoRAs into one. The bars set, per block, how much of each you get: **0 = only A**, **0.5 = both at full strength**, **1 = only B**. Layers outside the blocks follow the bars' average.
+
+- **method**: **sum** adds both, exactly (loading the saved merge gives the same image as the node). **ties** keeps each LoRA's strongest changes (**ties_density**) and drops the ones where the two pull against each other: for two styles or two characters that clash. Slower.
+- **mix**: one slider over the whole merge, like a plain model merge: **0 = only A**, **1 = only B**. At 0.5 the bars apply as set.
+- **preset**: Both full, A early / B late, B early / A late, A only, B only, and **Face from B** (8-20, 4-13, 16-21). Dragging a bar switches to Custom.
+- **Face from B**: put the main LoRA (body, style) in A and the face LoRA in B. B gets the window, A the rest. Where a LoRA keeps its face changes from LoRA to LoRA, so these are starting points: move the bars, or wire **LC Krea2 LoRA Block Scan**'s curve into **blocks_in**.
+- **lora_c / lora_d** (optional): a third and fourth LoRA at their own strength in every block (not on the bars).
+- Heatmaps: LoRA A's share, LoRA B's share and the merged result, per layer and block.
+- 💡 Two LoRAs stacked in two loaders and the same two merged with **sum** give the same picture, but not bit for bit: one combined patch rounds slightly differently from two separate ones.
+
+**LC LoRA Save** writes the edited LoRA to `models/loras` (`%source%` in the filename = the original LoRA's name, a number is added if the file exists) with every edit and the strength baked in, so it loads at 1.0 in any LoRA loader. Saving and reloading gives the same image as the Editor. `rank` 0 keeps each layer's rank; any other number re-fits every layer to that rank. LoRAs in other formats (LoKr, LoHa) are edited per layer and converted to lora_A / lora_B when saved. The edit settings go into the file's metadata.
 
 ### LC Checkpoint Save / LC Diffusion Model Save
 

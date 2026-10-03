@@ -1,0 +1,1494 @@
+{
+ "id": "a867b535-1915-40bd-bc43-61bd3b8f3ff0",
+ "revision": 0,
+ "last_node_id": 16,
+ "last_link_id": 18,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "LCNote",
+   "pos": [
+    -620,
+    0
+   ],
+   "size": [
+    580,
+    1500
+   ],
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {
+    "lc_note": {
+     "source": "en",
+     "texts": {
+      "en": {
+       "text": "## LC Krea2 LoRA Editor\n\n### 🛑🚫✋ Read this first\n- 🧪 **BETA, still in testing.** Presets and defaults can change between versions. Keep your original LoRA files.\n- Krea 2 LoRAs only (for now). ZIT and Klein come later.\n- **Block Scan** renders 64 images (8 rows x 8 seeds). About 7 minutes on a 5090. It only runs again when you change its settings, so tweak the Editor all you want after the first run.\n- Use a prompt with one clear face. The scan needs a face to score.\n- The face models download once (InsightFace buffalo_l, non-commercial license) and need **onnxruntime**.\n\n**LC Krea2 LoRA Block Scan**\n- Renders the same seeds with no LoRA, with the full LoRA, then with the LoRA turned off in one block group at a time.\n- **same face**: how alike the faces are across the seeds. Lower = more variety.\n\n| Score | What it looks like |\n|---|---|\n| 0.0 - 0.2 | Clearly different people |\n| 0.2 - 0.35 | Different people who share a few features |\n| 0.35 - 0.5 | Could be sisters |\n| 0.5 - 1.0 | Same person |\n\n- **vs base**: how far the render moved from the model without the LoRA (LPIPS, 0 = identical). A LoRA meant to change one thing should keep this low.\n- **vs LoRA**: how much of the LoRA's look you lose with that group off.\n- **blocks**: the suggested curve. The group that frees the face most drops to 0.3. If nothing beats the seed noise (0.03), it stays all 1 and the report says so.\n- 💡 Face lock hides in different blocks for every LoRA (Lip Bite: 16-21, Amateur V4: 4-9). That is the whole reason this node exists.\n\n**LC Krea2 LoRA Editor**\n- Sits where a LoRA loader would. Model in, model out.\n- **blocks_in** is wired to the scan. Unplug it to drag the bars yourself (0 to 2, double-click resets a bar).\n- **preset**: block groups to try by hand. **Tame** = blocks 4-15 at 0.7.\n- **attention / mlp / outside_blocks**: scale those layers in every block at once.\n- **spike_soften**: **directions** flattens the one direction that dominates a layer. This is what stopped Lip Bite from changing the whole image. **spike_limit** 2 is a good start.\n- The heatmap shows each layer's strength before and after, filled in after a run.\n\n**LC Face Variety Scorer 🧑‍🤝‍🧑**\n- Scores the Editor's test batch (same seeds as the scan), so you can check the fix without running the scan again.\n\n**LC LoRA Save**\n- ⚠️ Muted. NOTHING SAVES UNLESS IT IS TURNED ON! (Ctrl+M)\n- Saves to **models/loras** with every edit baked in. Loads at 1.0 in any LoRA loader.\n- **rank**: 0 keeps it. Any other number makes a smaller file.\n\n---"
+      }
+     },
+     "titles": {}
+    }
+   },
+   "widgets_values": [
+    "English ✏️",
+    "## LC Krea2 LoRA Editor\n\n### 🛑🚫✋ Read this first\n- 🧪 **BETA, still in testing.** Presets and defaults can change between versions. Keep your original LoRA files.\n- Krea 2 LoRAs only (for now). ZIT and Klein come later.\n- **Block Scan** renders 64 images (8 rows x 8 seeds). About 7 minutes on a 5090. It only runs again when you change its settings, so tweak the Editor all you want after the first run.\n- Use a prompt with one clear face. The scan needs a face to score.\n- The face models download once (InsightFace buffalo_l, non-commercial license) and need **onnxruntime**.\n\n**LC Krea2 LoRA Block Scan**\n- Renders the same seeds with no LoRA, with the full LoRA, then with the LoRA turned off in one block group at a time.\n- **same face**: how alike the faces are across the seeds. Lower = more variety.\n\n| Score | What it looks like |\n|---|---|\n| 0.0 - 0.2 | Clearly different people |\n| 0.2 - 0.35 | Different people who share a few features |\n| 0.35 - 0.5 | Could be sisters |\n| 0.5 - 1.0 | Same person |\n\n- **vs base**: how far the render moved from the model without the LoRA (LPIPS, 0 = identical). A LoRA meant to change one thing should keep this low.\n- **vs LoRA**: how much of the LoRA's look you lose with that group off.\n- **blocks**: the suggested curve. The group that frees the face most drops to 0.3. If nothing beats the seed noise (0.03), it stays all 1 and the report says so.\n- 💡 Face lock hides in different blocks for every LoRA (Lip Bite: 16-21, Amateur V4: 4-9). That is the whole reason this node exists.\n\n**LC Krea2 LoRA Editor**\n- Sits where a LoRA loader would. Model in, model out.\n- **blocks_in** is wired to the scan. Unplug it to drag the bars yourself (0 to 2, double-click resets a bar).\n- **preset**: block groups to try by hand. **Tame** = blocks 4-15 at 0.7.\n- **attention / mlp / outside_blocks**: scale those layers in every block at once.\n- **spike_soften**: **directions** flattens the one direction that dominates a layer. This is what stopped Lip Bite from changing the whole image. **spike_limit** 2 is a good start.\n- The heatmap shows each layer's strength before and after, filled in after a run.\n\n**LC Face Variety Scorer 🧑‍🤝‍🧑**\n- Scores the Editor's test batch (same seeds as the scan), so you can check the fix without running the scan again.\n\n**LC LoRA Save**\n- ⚠️ Muted. NOTHING SAVES UNLESS IT IS TURNED ON! (Ctrl+M)\n- Saves to **models/loras** with every edit baked in. Loads at 1.0 in any LoRA loader.\n- **rank**: 0 keeps it. Any other number makes a smaller file.\n\n---"
+   ],
+   "widgets_values_named": {
+    "language": "English ✏️",
+    "text": "## LC Krea2 LoRA Editor\n\n### 🛑🚫✋ Read this first\n- 🧪 **BETA, still in testing.** Presets and defaults can change between versions. Keep your original LoRA files.\n- Krea 2 LoRAs only (for now). ZIT and Klein come later.\n- **Block Scan** renders 64 images (8 rows x 8 seeds). About 7 minutes on a 5090. It only runs again when you change its settings, so tweak the Editor all you want after the first run.\n- Use a prompt with one clear face. The scan needs a face to score.\n- The face models download once (InsightFace buffalo_l, non-commercial license) and need **onnxruntime**.\n\n**LC Krea2 LoRA Block Scan**\n- Renders the same seeds with no LoRA, with the full LoRA, then with the LoRA turned off in one block group at a time.\n- **same face**: how alike the faces are across the seeds. Lower = more variety.\n\n| Score | What it looks like |\n|---|---|\n| 0.0 - 0.2 | Clearly different people |\n| 0.2 - 0.35 | Different people who share a few features |\n| 0.35 - 0.5 | Could be sisters |\n| 0.5 - 1.0 | Same person |\n\n- **vs base**: how far the render moved from the model without the LoRA (LPIPS, 0 = identical). A LoRA meant to change one thing should keep this low.\n- **vs LoRA**: how much of the LoRA's look you lose with that group off.\n- **blocks**: the suggested curve. The group that frees the face most drops to 0.3. If nothing beats the seed noise (0.03), it stays all 1 and the report says so.\n- 💡 Face lock hides in different blocks for every LoRA (Lip Bite: 16-21, Amateur V4: 4-9). That is the whole reason this node exists.\n\n**LC Krea2 LoRA Editor**\n- Sits where a LoRA loader would. Model in, model out.\n- **blocks_in** is wired to the scan. Unplug it to drag the bars yourself (0 to 2, double-click resets a bar).\n- **preset**: block groups to try by hand. **Tame** = blocks 4-15 at 0.7.\n- **attention / mlp / outside_blocks**: scale those layers in every block at once.\n- **spike_soften**: **directions** flattens the one direction that dominates a layer. This is what stopped Lip Bite from changing the whole image. **spike_limit** 2 is a good start.\n- The heatmap shows each layer's strength before and after, filled in after a run.\n\n**LC Face Variety Scorer 🧑‍🤝‍🧑**\n- Scores the Editor's test batch (same seeds as the scan), so you can check the fix without running the scan again.\n\n**LC LoRA Save**\n- ⚠️ Muted. NOTHING SAVES UNLESS IT IS TURNED ON! (Ctrl+M)\n- Saves to **models/loras** with every edit baked in. Loads at 1.0 in any LoRA loader.\n- **rank**: 0 keeps it. Any other number makes a smaller file.\n\n---"
+   },
+   "color": "#2E3A46",
+   "bgcolor": "#2E3A46"
+  },
+  {
+   "id": 2,
+   "type": "UNETLoader",
+   "pos": [
+    0,
+    0
+   ],
+   "size": [
+    320,
+    82
+   ],
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "unet_name",
+     "name": "unet_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "unet_name"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "weight_dtype",
+     "name": "weight_dtype",
+     "type": "COMBO",
+     "widget": {
+      "name": "weight_dtype"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "MODEL",
+     "name": "MODEL",
+     "type": "MODEL",
+     "links": [
+      3,
+      7
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.37.0",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "UNETLoader"
+   },
+   "widgets_values": [
+    "Krea 2\\krea2_Turbo_Bf16.safetensors",
+    "default"
+   ],
+   "widgets_values_named": {
+    "unet_name": "Krea 2\\krea2_Turbo_Bf16.safetensors",
+    "weight_dtype": "default"
+   }
+  },
+  {
+   "id": 3,
+   "type": "CLIPLoader",
+   "pos": [
+    0,
+    130
+   ],
+   "size": [
+    320,
+    106
+   ],
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "clip_name",
+     "name": "clip_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "clip_name"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "type",
+     "name": "type",
+     "type": "COMBO",
+     "widget": {
+      "name": "type"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "device",
+     "name": "device",
+     "shape": 7,
+     "type": "COMBO",
+     "widget": {
+      "name": "device"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "CLIP",
+     "name": "CLIP",
+     "type": "CLIP",
+     "links": [
+      1
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.37.0",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "CLIPLoader"
+   },
+   "widgets_values": [
+    "Qwen 3\\qwen3vl_4b_fp8_scaled.safetensors",
+    "krea2",
+    "default"
+   ],
+   "widgets_values_named": {
+    "clip_name": "Qwen 3\\qwen3vl_4b_fp8_scaled.safetensors",
+    "type": "krea2",
+    "device": "default"
+   }
+  },
+  {
+   "id": 4,
+   "type": "VAELoader",
+   "pos": [
+    0,
+    290
+   ],
+   "size": [
+    320,
+    58
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "vae_name",
+     "name": "vae_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "vae_name"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "VAE",
+     "name": "VAE",
+     "type": "VAE",
+     "links": [
+      4,
+      14
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.37.0",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "VAELoader"
+   },
+   "widgets_values": [
+    "qwen_image_vae.safetensors"
+   ],
+   "widgets_values_named": {
+    "vae_name": "qwen_image_vae.safetensors"
+   }
+  },
+  {
+   "id": 5,
+   "type": "CLIPTextEncode",
+   "pos": [
+    0,
+    400
+   ],
+   "size": [
+    320,
+    200
+   ],
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "clip",
+     "name": "clip",
+     "type": "CLIP",
+     "link": 1
+    },
+    {
+     "localized_name": "text",
+     "name": "text",
+     "type": "STRING",
+     "widget": {
+      "name": "text"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "CONDITIONING",
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "links": [
+      2,
+      5,
+      10
+     ]
+    }
+   ],
+   "title": "Prompt (one clear face)",
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.37.0",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "CLIPTextEncode"
+   },
+   "widgets_values": [
+    "A candid photo of a young woman sitting in a cafe, looking at the camera."
+   ],
+   "widgets_values_named": {
+    "text": "A candid photo of a young woman sitting in a cafe, looking at the camera."
+   }
+  },
+  {
+   "id": 6,
+   "type": "ConditioningZeroOut",
+   "pos": [
+    0,
+    640
+   ],
+   "size": [
+    320,
+    26
+   ],
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "conditioning",
+     "name": "conditioning",
+     "type": "CONDITIONING",
+     "link": 2
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "CONDITIONING",
+     "name": "CONDITIONING",
+     "type": "CONDITIONING",
+     "links": [
+      11
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.37.0",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "ConditioningZeroOut"
+   }
+  },
+  {
+   "id": 7,
+   "type": "LCKrea2LoRABlockScan",
+   "pos": [
+    400,
+    0
+   ],
+   "size": [
+    380,
+    760
+   ],
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "model",
+     "name": "model",
+     "type": "MODEL",
+     "link": 3
+    },
+    {
+     "localized_name": "vae",
+     "name": "vae",
+     "type": "VAE",
+     "link": 4
+    },
+    {
+     "localized_name": "positive",
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 5
+    },
+    {
+     "localized_name": "negative",
+     "name": "negative",
+     "shape": 7,
+     "type": "CONDITIONING",
+     "link": null
+    },
+    {
+     "localized_name": "lora_name",
+     "name": "lora_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "lora_name"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "strength",
+     "name": "strength",
+     "type": "FLOAT",
+     "widget": {
+      "name": "strength"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "groups",
+     "name": "groups",
+     "type": "STRING",
+     "widget": {
+      "name": "groups"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "off_value",
+     "name": "off_value",
+     "type": "FLOAT",
+     "widget": {
+      "name": "off_value"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "seed",
+     "name": "seed",
+     "type": "INT",
+     "widget": {
+      "name": "seed"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "images",
+     "name": "images",
+     "type": "INT",
+     "widget": {
+      "name": "images"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "width",
+     "name": "width",
+     "type": "INT",
+     "widget": {
+      "name": "width"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "height",
+     "name": "height",
+     "type": "INT",
+     "widget": {
+      "name": "height"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "steps",
+     "name": "steps",
+     "type": "INT",
+     "widget": {
+      "name": "steps"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "cfg",
+     "name": "cfg",
+     "type": "FLOAT",
+     "widget": {
+      "name": "cfg"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "sampler_name",
+     "name": "sampler_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "sampler_name"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "scheduler",
+     "name": "scheduler",
+     "type": "COMBO",
+     "widget": {
+      "name": "scheduler"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "grid",
+     "name": "grid",
+     "type": "IMAGE",
+     "links": null
+    },
+    {
+     "localized_name": "report",
+     "name": "report",
+     "type": "STRING",
+     "links": [
+      6
+     ]
+    },
+    {
+     "localized_name": "blocks",
+     "name": "blocks",
+     "type": "STRING",
+     "links": [
+      8
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "ComfyUI_LC_ModelBuilder_nodes",
+    "ver": "d53783071e8413a983505d955b3a9bc70c7d60b5",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "LCKrea2LoRABlockScan"
+   },
+   "widgets_values": [
+    "Krea 2\\Your Loras\\Better_Lip_Bite_Krea2.safetensors",
+    1,
+    "0-3, 4-9, 10-15, 16-21, 22-27, fusion",
+    0,
+    42,
+    "fixed",
+    8,
+    1024,
+    1024,
+    8,
+    1,
+    "euler",
+    "simple"
+   ],
+   "widgets_values_named": {
+    "lora_name": "Krea 2\\Your Loras\\Better_Lip_Bite_Krea2.safetensors",
+    "strength": 1,
+    "groups": "0-3, 4-9, 10-15, 16-21, 22-27, fusion",
+    "off_value": 0,
+    "seed": 42,
+    "fixed": "fixed",
+    "images": 8,
+    "width": 1024,
+    "height": 1024,
+    "steps": 8,
+    "cfg": 1,
+    "sampler_name": "euler",
+    "scheduler": "simple"
+   },
+   "color": "#6a5220",
+   "bgcolor": "#6a5220"
+  },
+  {
+   "id": 8,
+   "type": "PreviewAny",
+   "pos": [
+    400,
+    780
+   ],
+   "size": [
+    560,
+    240
+   ],
+   "flags": {},
+   "order": 8,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "source",
+     "name": "source",
+     "type": "*",
+     "link": 6
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "STRING",
+     "name": "STRING",
+     "type": "STRING",
+     "links": null
+    }
+   ],
+   "title": "Scan report",
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.37.0",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "widgets_values_named": {}
+  },
+  {
+   "id": 9,
+   "type": "LCKrea2LoRAEditor",
+   "pos": [
+    1020,
+    0
+   ],
+   "size": [
+    380,
+    570
+   ],
+   "flags": {},
+   "order": 9,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "model",
+     "name": "model",
+     "type": "MODEL",
+     "link": 7
+    },
+    {
+     "localized_name": "blocks_in",
+     "name": "blocks_in",
+     "shape": 7,
+     "type": "STRING",
+     "link": 8
+    },
+    {
+     "localized_name": "lora_name",
+     "name": "lora_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "lora_name"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "strength",
+     "name": "strength",
+     "type": "FLOAT",
+     "widget": {
+      "name": "strength"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "preset",
+     "name": "preset",
+     "type": "COMBO",
+     "widget": {
+      "name": "preset"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "blocks",
+     "name": "blocks",
+     "type": "STRING",
+     "widget": {
+      "name": "blocks"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "attention",
+     "name": "attention",
+     "type": "FLOAT",
+     "widget": {
+      "name": "attention"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "mlp",
+     "name": "mlp",
+     "type": "FLOAT",
+     "widget": {
+      "name": "mlp"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "outside_blocks",
+     "name": "outside_blocks",
+     "type": "FLOAT",
+     "widget": {
+      "name": "outside_blocks"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "spike_soften",
+     "name": "spike_soften",
+     "type": "COMBO",
+     "widget": {
+      "name": "spike_soften"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "spike_limit",
+     "name": "spike_limit",
+     "type": "FLOAT",
+     "widget": {
+      "name": "spike_limit"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "model",
+     "name": "model",
+     "type": "MODEL",
+     "links": [
+      9
+     ]
+    },
+    {
+     "localized_name": "edited_lora",
+     "name": "edited_lora",
+     "type": "LC_LORA",
+     "links": [
+      18
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "ComfyUI_LC_ModelBuilder_nodes",
+    "ver": "d53783071e8413a983505d955b3a9bc70c7d60b5",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "LCKrea2LoRAEditor"
+   },
+   "widgets_values": [
+    "Krea 2\\Your Loras\\Better_Lip_Bite_Krea2.safetensors",
+    1,
+    "Full",
+    "1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1",
+    1,
+    1,
+    1,
+    "directions",
+    2,
+    ""
+   ],
+   "widgets_values_named": {
+    "lora_name": "Krea 2\\Your Loras\\Better_Lip_Bite_Krea2.safetensors",
+    "strength": 1,
+    "preset": "Full",
+    "blocks": "1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1",
+    "attention": 1,
+    "mlp": 1,
+    "outside_blocks": 1,
+    "spike_soften": "directions",
+    "spike_limit": 2,
+    "lc_lora_graph": ""
+   },
+   "color": "#6a5220",
+   "bgcolor": "#6a5220"
+  },
+  {
+   "id": 10,
+   "type": "EmptyLatentImage",
+   "pos": [
+    1460,
+    0
+   ],
+   "size": [
+    300,
+    106
+   ],
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "width",
+     "name": "width",
+     "type": "INT",
+     "widget": {
+      "name": "width"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "height",
+     "name": "height",
+     "type": "INT",
+     "widget": {
+      "name": "height"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "batch_size",
+     "name": "batch_size",
+     "type": "INT",
+     "widget": {
+      "name": "batch_size"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "LATENT",
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      12
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.37.0",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "EmptyLatentImage"
+   },
+   "widgets_values": [
+    1024,
+    1024,
+    8
+   ],
+   "widgets_values_named": {
+    "width": 1024,
+    "height": 1024,
+    "batch_size": 8
+   }
+  },
+  {
+   "id": 11,
+   "type": "KSampler",
+   "pos": [
+    1460,
+    180
+   ],
+   "size": [
+    300,
+    262
+   ],
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "model",
+     "name": "model",
+     "type": "MODEL",
+     "link": 9
+    },
+    {
+     "localized_name": "positive",
+     "name": "positive",
+     "type": "CONDITIONING",
+     "link": 10
+    },
+    {
+     "localized_name": "negative",
+     "name": "negative",
+     "type": "CONDITIONING",
+     "link": 11
+    },
+    {
+     "localized_name": "latent_image",
+     "name": "latent_image",
+     "type": "LATENT",
+     "link": 12
+    },
+    {
+     "localized_name": "seed",
+     "name": "seed",
+     "type": "INT",
+     "widget": {
+      "name": "seed"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "steps",
+     "name": "steps",
+     "type": "INT",
+     "widget": {
+      "name": "steps"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "cfg",
+     "name": "cfg",
+     "type": "FLOAT",
+     "widget": {
+      "name": "cfg"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "sampler_name",
+     "name": "sampler_name",
+     "type": "COMBO",
+     "widget": {
+      "name": "sampler_name"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "scheduler",
+     "name": "scheduler",
+     "type": "COMBO",
+     "widget": {
+      "name": "scheduler"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "denoise",
+     "name": "denoise",
+     "type": "FLOAT",
+     "widget": {
+      "name": "denoise"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "LATENT",
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      13
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.37.0",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "KSampler"
+   },
+   "widgets_values": [
+    42,
+    "fixed",
+    8,
+    1,
+    "euler",
+    "simple",
+    1
+   ],
+   "widgets_values_named": {
+    "seed": 42,
+    "control_after_generate": "fixed",
+    "steps": 8,
+    "cfg": 1,
+    "sampler_name": "euler",
+    "scheduler": "simple",
+    "denoise": 1
+   }
+  },
+  {
+   "id": 12,
+   "type": "VAEDecode",
+   "pos": [
+    1460,
+    500
+   ],
+   "size": [
+    300,
+    46
+   ],
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "samples",
+     "name": "samples",
+     "type": "LATENT",
+     "link": 13
+    },
+    {
+     "localized_name": "vae",
+     "name": "vae",
+     "type": "VAE",
+     "link": 14
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "IMAGE",
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      15,
+      16
+     ]
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.37.0",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "VAEDecode"
+   }
+  },
+  {
+   "id": 13,
+   "type": "PreviewImage",
+   "pos": [
+    1800,
+    0
+   ],
+   "size": [
+    520,
+    560
+   ],
+   "flags": {},
+   "order": 13,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "images",
+     "name": "images",
+     "type": "IMAGE",
+     "link": 15
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "images",
+     "name": "images",
+     "type": "IMAGE",
+     "links": null
+    }
+   ],
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.37.0",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "PreviewImage"
+   }
+  },
+  {
+   "id": 14,
+   "type": "LCFaceVarietyScorer",
+   "pos": [
+    1800,
+    600
+   ],
+   "size": [
+    320,
+    226
+   ],
+   "flags": {},
+   "order": 14,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "images",
+     "name": "images",
+     "type": "IMAGE",
+     "link": 16
+    },
+    {
+     "localized_name": "same_threshold",
+     "name": "same_threshold",
+     "type": "FLOAT",
+     "widget": {
+      "name": "same_threshold"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "min_face_px",
+     "name": "min_face_px",
+     "type": "INT",
+     "widget": {
+      "name": "min_face_px"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "device",
+     "name": "device",
+     "type": "COMBO",
+     "widget": {
+      "name": "device"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "score",
+     "name": "score",
+     "type": "FLOAT",
+     "links": null
+    },
+    {
+     "localized_name": "same_pct",
+     "name": "same_pct",
+     "type": "FLOAT",
+     "links": null
+    },
+    {
+     "localized_name": "crowd_score",
+     "name": "crowd_score",
+     "type": "FLOAT",
+     "links": null
+    },
+    {
+     "localized_name": "grade",
+     "name": "grade",
+     "type": "STRING",
+     "links": null
+    },
+    {
+     "localized_name": "report",
+     "name": "report",
+     "type": "STRING",
+     "links": [
+      17
+     ]
+    },
+    {
+     "localized_name": "faces",
+     "name": "faces",
+     "type": "IMAGE",
+     "links": null
+    },
+    {
+     "localized_name": "faces_found",
+     "name": "faces_found",
+     "type": "INT",
+     "links": null
+    }
+   ],
+   "properties": {
+    "cnr_id": "ComfyUI_LC_ModelBuilder_nodes",
+    "ver": "d53783071e8413a983505d955b3a9bc70c7d60b5",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "LCFaceVarietyScorer"
+   },
+   "widgets_values": [
+    0.35,
+    40,
+    "cpu"
+   ],
+   "widgets_values_named": {
+    "same_threshold": 0.35,
+    "min_face_px": 40,
+    "device": "cpu"
+   },
+   "color": "#5a4a1a",
+   "bgcolor": "#5a4a1a"
+  },
+  {
+   "id": 15,
+   "type": "PreviewAny",
+   "pos": [
+    1800,
+    820
+   ],
+   "size": [
+    520,
+    122
+   ],
+   "flags": {},
+   "order": 15,
+   "mode": 0,
+   "inputs": [
+    {
+     "localized_name": "source",
+     "name": "source",
+     "type": "*",
+     "link": 17
+    }
+   ],
+   "outputs": [
+    {
+     "localized_name": "STRING",
+     "name": "STRING",
+     "type": "STRING",
+     "links": null
+    }
+   ],
+   "title": "Face variety after the edit",
+   "properties": {
+    "cnr_id": "comfy-core",
+    "ver": "0.37.0",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "PreviewAny"
+   },
+   "widgets_values": [],
+   "widgets_values_named": {}
+  },
+  {
+   "id": 16,
+   "type": "LCLoRASave",
+   "pos": [
+    1020,
+    1040
+   ],
+   "size": [
+    380,
+    106
+   ],
+   "flags": {},
+   "order": 11,
+   "mode": 2,
+   "inputs": [
+    {
+     "localized_name": "lora",
+     "name": "lora",
+     "type": "LC_LORA",
+     "link": 18
+    },
+    {
+     "localized_name": "filename",
+     "name": "filename",
+     "type": "STRING",
+     "widget": {
+      "name": "filename"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "rank",
+     "name": "rank",
+     "type": "INT",
+     "widget": {
+      "name": "rank"
+     },
+     "link": null
+    },
+    {
+     "localized_name": "dtype",
+     "name": "dtype",
+     "type": "COMBO",
+     "widget": {
+      "name": "dtype"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "cnr_id": "ComfyUI_LC_ModelBuilder_nodes",
+    "ver": "d53783071e8413a983505d955b3a9bc70c7d60b5",
+    "ue_properties": {
+     "widget_ue_connectable": {},
+     "input_ue_unconnectable": {}
+    },
+    "Node name for S&R": "LCLoRASave"
+   },
+   "widgets_values": [
+    "edited/%source%_edit",
+    0,
+    "bf16"
+   ],
+   "widgets_values_named": {
+    "filename": "edited/%source%_edit",
+    "rank": 0,
+    "dtype": "bf16"
+   },
+   "color": "#3a3a2a",
+   "bgcolor": "#3a3a2a"
+  }
+ ],
+ "links": [
+  [
+   1,
+   3,
+   0,
+   5,
+   0,
+   "CLIP"
+  ],
+  [
+   2,
+   5,
+   0,
+   6,
+   0,
+   "CONDITIONING"
+  ],
+  [
+   3,
+   2,
+   0,
+   7,
+   0,
+   "MODEL"
+  ],
+  [
+   4,
+   4,
+   0,
+   7,
+   1,
+   "VAE"
+  ],
+  [
+   5,
+   5,
+   0,
+   7,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   6,
+   7,
+   1,
+   8,
+   0,
+   "STRING"
+  ],
+  [
+   7,
+   2,
+   0,
+   9,
+   0,
+   "MODEL"
+  ],
+  [
+   8,
+   7,
+   2,
+   9,
+   1,
+   "STRING"
+  ],
+  [
+   9,
+   9,
+   0,
+   11,
+   0,
+   "MODEL"
+  ],
+  [
+   10,
+   5,
+   0,
+   11,
+   1,
+   "CONDITIONING"
+  ],
+  [
+   11,
+   6,
+   0,
+   11,
+   2,
+   "CONDITIONING"
+  ],
+  [
+   12,
+   10,
+   0,
+   11,
+   3,
+   "LATENT"
+  ],
+  [
+   13,
+   11,
+   0,
+   12,
+   0,
+   "LATENT"
+  ],
+  [
+   14,
+   4,
+   0,
+   12,
+   1,
+   "VAE"
+  ],
+  [
+   15,
+   12,
+   0,
+   13,
+   0,
+   "IMAGE"
+  ],
+  [
+   16,
+   12,
+   0,
+   14,
+   0,
+   "IMAGE"
+  ],
+  [
+   17,
+   14,
+   4,
+   15,
+   0,
+   "STRING"
+  ],
+  [
+   18,
+   9,
+   1,
+   16,
+   0,
+   "LC_LORA"
+  ]
+ ],
+ "groups": [
+  {
+   "id": 1,
+   "title": "Load",
+   "bounding": [
+    -20,
+    -60,
+    360,
+    820
+   ],
+   "color": "#3f5159",
+   "flags": {}
+  },
+  {
+   "id": 2,
+   "title": "1. Find the face lock",
+   "bounding": [
+    380,
+    -60,
+    600,
+    1100
+   ],
+   "color": "#5a4a1a",
+   "flags": {}
+  },
+  {
+   "id": 3,
+   "title": "2. Edit and test",
+   "bounding": [
+    1000,
+    -60,
+    1340,
+    1080
+   ],
+   "color": "#6a5220",
+   "flags": {}
+  },
+  {
+   "id": 4,
+   "title": "3. Save (muted)",
+   "bounding": [
+    1000,
+    980,
+    420,
+    260
+   ],
+   "color": "#3a3a2a",
+   "flags": {}
+  }
+ ],
+ "config": {},
+ "extra": {
+  "ue_links": [],
+  "links_added_by_ue": [],
+  "ds": {
+   "scale": 0.33,
+   "offset": [
+    230,
+    40
+   ]
+  }
+ },
+ "version": 0.4
+}
