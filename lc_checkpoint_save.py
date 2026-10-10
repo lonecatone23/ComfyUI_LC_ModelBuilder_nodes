@@ -105,6 +105,14 @@ EMBED_WORKFLOW_INPUT = (
 )
 
 
+def workflow_metadata(prompt, extra_pnginfo):
+    """The prompt / workflow JSON a save node embeds when embed_workflow is on (same keys as the model saves)."""
+    meta = {"prompt": json.dumps(prompt) if prompt is not None else ""}
+    for x in extra_pnginfo or {}:
+        meta[x] = json.dumps(extra_pnginfo[x])
+    return meta
+
+
 class LCCheckpointSave:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()

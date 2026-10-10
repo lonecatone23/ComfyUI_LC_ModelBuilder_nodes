@@ -1,0 +1,353 @@
+{
+  "id": "f2c6d23d-8d0b-405b-a572-6dbbbef0cc8f",
+  "revision": 0,
+  "last_node_id": 10,
+  "last_link_id": 10,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LCNote",
+      "pos": [
+        -30,
+        0
+      ],
+      "size": [
+        450,
+        400
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Read me",
+      "properties": {
+        "lc_note": {
+          "source": "en",
+          "texts": {
+            "en": {
+              "text": "# LC LoRA Extract 🧪\n\n### 🛑🚫✋ Where this stands\n- Built 2026-10-10, ModelBuilder 0.4.0 (not pushed yet).\n- Takes about 9 minutes per extraction on a 5090. Both models must be **bf16** (fp8 sources come out 2.7x bigger and full of rounding noise).\n\n## LC LoRA Extract\n\n**parts:** \n- **all layers**. Use on Krea 2 Turbo at 1.0\n- **blocks only**. Leaves out text fusion (on Raw it cancels the look). Use on Krea 2 Raw at 1.0 to 1.25.\n\n**Settings**\n- **rank** 256, **keep** 0.90: matched the full model. Rank 512 was not closer.\n- **min_change** 0.001: unchanged layers are left out *\n- Files land in models/loras/Krea 2/Your Loras with _new in the name, so nothing gets overwritten.\n\n---"
+            }
+          },
+          "titles": {
+            "en": "Read me"
+          }
+        },
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.8",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "English ✏️",
+        "# LC LoRA Extract 🧪\n\n### 🛑🚫✋ Where this stands\n- Built 2026-10-10, ModelBuilder 0.4.0 (not pushed yet).\n- Takes about 9 minutes per extraction on a 5090. Both models must be **bf16** (fp8 sources come out 2.7x bigger and full of rounding noise).\n\n## LC LoRA Extract\n\n**parts:** \n- **all layers**. Use on Krea 2 Turbo at 1.0\n- **blocks only**. Leaves out text fusion (on Raw it cancels the look). Use on Krea 2 Raw at 1.0 to 1.25.\n\n**Settings**\n- **rank** 256, **keep** 0.90: matched the full model. Rank 512 was not closer.\n- **min_change** 0.001: unchanged layers are left out *\n- Files land in models/loras/Krea 2/Your Loras with _new in the name, so nothing gets overwritten.\n\n---"
+      ],
+      "widgets_values_named": {
+        "language": "English ✏️",
+        "text": "# LC LoRA Extract 🧪\n\n### 🛑🚫✋ Where this stands\n- Built 2026-10-10, ModelBuilder 0.4.0 (not pushed yet).\n- Takes about 9 minutes per extraction on a 5090. Both models must be **bf16** (fp8 sources come out 2.7x bigger and full of rounding noise).\n\n## LC LoRA Extract\n\n**parts:** \n- **all layers**. Use on Krea 2 Turbo at 1.0\n- **blocks only**. Leaves out text fusion (on Raw it cancels the look). Use on Krea 2 Raw at 1.0 to 1.25.\n\n**Settings**\n- **rank** 256, **keep** 0.90: matched the full model. Rank 512 was not closer.\n- **min_change** 0.001: unchanged layers are left out *\n- Files land in models/loras/Krea 2/Your Loras with _new in the name, so nothing gets overwritten.\n\n---"
+      },
+      "color": "#2E3A46",
+      "bgcolor": "#2E3A46"
+    },
+    {
+      "id": 2,
+      "type": "UNETLoader",
+      "pos": [
+        440,
+        0
+      ],
+      "size": [
+        370,
+        90
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            8
+          ]
+        }
+      ],
+      "title": "Finetuned Model",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.37.0",
+        "Node name for S&R": "UNETLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "Krea 2\\Your models\\Krealism V3.1\\Krealism_V3.1_bf16.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "Krea 2\\Your models\\Krealism V3.1\\Krealism_V3.1_bf16.safetensors",
+        "weight_dtype": "default"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 3,
+      "type": "UNETLoader",
+      "pos": [
+        440,
+        130
+      ],
+      "size": [
+        370,
+        90
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            9
+          ]
+        }
+      ],
+      "title": "Base (Turbo bf16)",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.37.0",
+        "Node name for S&R": "UNETLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "Krea 2\\krea2_Turbo_Bf16.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "Krea 2\\krea2_Turbo_Bf16.safetensors",
+        "weight_dtype": "default"
+      },
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 6,
+      "type": "LCShowText",
+      "pos": [
+        1200,
+        0
+      ],
+      "size": [
+        280,
+        290
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 10
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "Report",
+      "properties": {
+        "cnr_id": "ComfyUI_LC123_nodes",
+        "ver": "e7e61c1a9aa6f5c2ffff4f4c1b28835792db1a52",
+        "Node name for S&R": "LCShowText",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 9,
+      "type": "LCLoRAExtract",
+      "pos": [
+        830,
+        0
+      ],
+      "size": [
+        350,
+        270
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "finetuned",
+          "type": "MODEL",
+          "link": 8
+        },
+        {
+          "name": "base",
+          "type": "MODEL",
+          "link": 9
+        }
+      ],
+      "outputs": [
+        {
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            10
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_LC_ModelBuilder_nodes",
+        "ver": "43c5ced18a5c02f3388c2952873b1ca47bba5a07",
+        "Node name for S&R": "LCLoRAExtract",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "widgets_values": [
+        "all layers",
+        "14-27",
+        256,
+        0.9,
+        0.001,
+        "Krea 2/Your Loras/extracted_lora",
+        "bf16",
+        true,
+        true
+      ],
+      "widgets_values_named": {
+        "parts": "all layers",
+        "blocks": "14-27",
+        "rank": 256,
+        "keep": 0.9,
+        "min_change": 0.001,
+        "filename": "Krea 2/Your Loras/extracted_lora",
+        "save_dtype": "bf16",
+        "enabled": true,
+        "embed_workflow": true
+      },
+      "color": "#6a5220",
+      "bgcolor": "#6a5220"
+    },
+    {
+      "id": 10,
+      "type": "LCLabel",
+      "pos": [
+        370,
+        -160
+      ],
+      "size": [
+        735,
+        95
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "text": "LC LoRA Extract 🧪",
+        "font": "Arial",
+        "size": 76,
+        "bold": true,
+        "italic": false,
+        "color": "#ffffff",
+        "align": "center",
+        "outline": false,
+        "outlineColor": "#000000",
+        "outlineWidth": 4,
+        "shadow": false,
+        "shadowBlur": 10,
+        "bg": false,
+        "bgColor": "#324B4B",
+        "radius": 12,
+        "padding": 8,
+        "angle": 0,
+        "width": 0,
+        "cnr_id": "ComfyUI_LC123_nodes",
+        "ver": "05f41a72c9fbc8ff375de4e3ce5206f6e75feb1e",
+        "Node name for S&R": "LCLabel",
+        "_w": 735,
+        "_h": 95,
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.8"
+        }
+      },
+      "color": "#fff0",
+      "bgcolor": "#fff0"
+    }
+  ],
+  "links": [
+    [
+      8,
+      2,
+      0,
+      9,
+      0,
+      "MODEL"
+    ],
+    [
+      9,
+      3,
+      0,
+      9,
+      1,
+      "MODEL"
+    ],
+    [
+      10,
+      9,
+      0,
+      6,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "ds": {
+      "scale": 1.2658327786108068,
+      "offset": [
+        524.0353225483282,
+        195.2705276324744
+      ]
+    },
+    "k2cf_state_id": "k2cf_1782395516386_1ufts1mp18p",
+    "links_added_by_ue": [],
+    "frontendVersion": "1.53.6",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

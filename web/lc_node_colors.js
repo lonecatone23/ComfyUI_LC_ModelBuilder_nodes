@@ -9,15 +9,17 @@ import { app } from "../../scripts/app.js";
 const COLORS = {
     LCKrea2BlockMergeAdvanced: { color: "#5a4a1a", bgcolor: "#5a4a1a" },
     LCKrea2SemanticVectorTuner: { color: "#6a5220", bgcolor: "#6a5220" },
-    // Not Krea2-specific -- same neutral shade for both save nodes since
-    // they're siblings (same category, same mechanism, model-only vs AIO).
-    LCCheckpointSave: { color: "#3a3a2a", bgcolor: "#3a3a2a" },
-    LCDiffusionModelSave: { color: "#3a3a2a", bgcolor: "#3a3a2a" },
+    // the save nodes share the pack's brass, like the LoRA tools
+    LCCheckpointSave: { color: "#6a5220", bgcolor: "#6a5220" },
+    LCDiffusionModelSave: { color: "#6a5220", bgcolor: "#6a5220" },
     LCFaceVarietyScorer: { color: "#5a4a1a", bgcolor: "#5a4a1a" },
     LCKrea2LoRAEditor: { color: "#6a5220", bgcolor: "#6a5220" },
-    LCLoRASave: { color: "#3a3a2a", bgcolor: "#3a3a2a" },
+    LCLoRASave: { color: "#6a5220", bgcolor: "#6a5220" },
     LCKrea2LoRABlockScan: { color: "#6a5220", bgcolor: "#6a5220" },
     LCKrea2LoRAMerge: { color: "#6a5220", bgcolor: "#6a5220" },
+    LCLoRAExtract: { color: "#6a5220", bgcolor: "#6a5220" },
+    LCModelMergeAny: { color: "#5a4a1a", bgcolor: "#5a4a1a" },
+    LCScoreboard: { color: "#5a4a1a", bgcolor: "#5a4a1a" },
 };
 
 app.registerExtension({

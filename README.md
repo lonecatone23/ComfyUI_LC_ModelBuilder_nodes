@@ -15,6 +15,9 @@ Model and checkpoint merging tools by lonecatone23. Companion pack to [ComfyUI_L
 | LC LoRA Save | 🧪 **BETA, still in testing.** Saves an edited LoRA as a standard file with every edit baked in, optionally at a new rank. |
 | LC Krea2 LoRA Block Scan | 🧪 **BETA, still in testing.** Finds where a LoRA locks the face or changes the whole image: renders a seed batch with each block group turned off, scores every row, and suggests a block curve for the Editor. |
 | LC Krea2 LoRA Merge | 🧪 **BETA, still in testing.** Merges two to four Krea 2 LoRAs with a per-block A / B curve (sum or TIES), applies the result like a LoRA loader and outputs it for LC LoRA Save. |
+| LC Model Merge (any precision) | Merges two models stored in different precisions (bf16 with fp8, int8, nvfp4 or GGUF, in either order). The result stays full precision. |
+| LC LoRA Extract | Turns a finetune into a LoRA: finetuned minus its base, all layers, blocks only or a custom block list. Unchanged layers are left out of the file. |
+| LC Scoreboard 🏆 | Head-to-head counter for A / B tests: #1 Win / Tie / #2 Win buttons, a reset, and the leader and percentages shown on the node. |
 
 ### LC Krea2 Block Merge Advanced
 
@@ -92,7 +95,37 @@ Tested on Better Lip Bite, which both locks the face and changes the whole image
 - Heatmaps: LoRA A's share, LoRA B's share and the merged result, per layer and block.
 - 💡 Two LoRAs stacked in two loaders and the same two merged with **sum** give the same picture, but not bit for bit: one combined patch rounds slightly differently from two separate ones.
 
-**LC LoRA Save** writes the edited LoRA to `models/loras` (`%source%` in the filename = the original LoRA's name, a number is added if the file exists) with every edit and the strength baked in, so it loads at 1.0 in any LoRA loader. Saving and reloading gives the same image as the Editor. `rank` 0 keeps each layer's rank; any other number re-fits every layer to that rank. LoRAs in other formats (LoKr, LoHa) are edited per layer and converted to lora_A / lora_B when saved. The edit settings go into the file's metadata.
+**LC LoRA Save** writes the edited LoRA to `models/loras` (`%source%` in the filename = the original LoRA's name, a number is added if the file exists) with every edit and the strength baked in, so it loads at 1.0 in any LoRA loader. Saving and reloading gives the same image as the Editor. `rank` 0 keeps each layer's rank; any other number re-fits every layer to that rank. LoRAs in other formats (LoKr, LoHa) are edited per layer and converted to lora_A / lora_B when saved. The edit settings go into the file's metadata. Same **enabled** and **embed_workflow** switches as LC Checkpoint Save (see below): off skips the save, and embed_workflow controls whether your graph goes into the file.
+
+### LC Model Merge (any precision)
+
+Core's merge nodes break when the two models are stored differently. A bf16 **model1** with an fp8 **model2** fails (`'Linear' object has no attribute 'weight_scale'`), and an fp8 **model1** works but rounds the whole result back down to fp8.
+
+- The quantized model (fp8, int8, nvfp4, GGUF) is decoded to full precision first, and the full-precision model becomes the base, so the result stays bf16 in either order.
+- **ratio**: 0 = all model1, 1 = all model2.
+- **block_ratios** (optional): one value per numbered block, comma list, block 0 first (Krea 2 has 28). Layers outside the blocks use **ratio**.
+- **report**: what each model was stored as, which one became the base and what the result is.
+- *note:* two quantized models still merge, but the result is rounded back to model1's format (the report says so).
+- Tested on Krea 2: Krealism fp8 + Turbo bf16 lands within normal fp8 rounding of the same merge done in pure bf16.
+
+### LC LoRA Extract
+
+Pulls a finetune out into a LoRA: **finetuned** minus **base**, compressed per layer. This is how the Krealism Turbo and Raw LoRAs were made.
+
+- **parts**: **all layers** (the whole finetune), **blocks only** (on Krea 2 this leaves out text fusion and the embedding layers, the version that works on Krea 2 Raw) or **custom blocks** (e.g. `14-27` or `4-9, 16, 20-22`).
+- **rank**: the highest rank any layer may use. **keep**: how much of each layer's change to keep (0.90 = 90%). Krealism at 256 / 0.90 matched the full model on Turbo.
+- **min_change**: layers that changed less than this are left out of the file, so it only holds what the finetune really changed.
+- Saved under `models/loras` (a number is added instead of overwriting), same key layout as ComfyUI's own LoRA saver, so any loader reads it.
+- **enabled** / **embed_workflow**: same switches as the save nodes. Off skips the extraction entirely. 💡 Turn embed_workflow off before sharing the LoRA if you don't want your graph attached.
+- ⚠️ Extract from **bf16** versions of both models. A quantized model adds its rounding to every layer: the file comes out bigger and holds noise. The report warns you.
+
+### LC Scoreboard 🏆
+
+Keeps score while you compare two models, LoRAs or settings side by side.
+
+- **#1 Win**, **Tie**, **#2 Win**: one press scores both sides (a win for #1 is a loss for #2). **Reset all** clears the board.
+- The node shows who leads and by how much (e.g. **#1 leads: 60%**), a share bar, and each side's win-loss-tie record. Equal wins show **Even**.
+- The score saves with the workflow. No need to run the graph; the **wins_1 / ties / wins_2 / summary** outputs are there if you want to log it.
 
 ### LC Checkpoint Save / LC Diffusion Model Save
 
@@ -149,6 +182,7 @@ Catches "same face" in a model. Feed it a batch of generations (same prompt, dif
 3. Restart ComfyUI.
 4. 💡 No `requirements.txt`. The merge and save nodes only use what ships with ComfyUI core. **LC Face Variety Scorer** needs `onnxruntime`, and `install.py` handles that for you (ComfyUI-Manager runs it on install and update). Installing by hand with `git clone`? Run `python install.py` once with ComfyUI's own python.
 5. 💡 The **LC Face Variety Test** workflow in `workflows/` also uses **LC Image Batch From Folder** from [ComfyUI_LC123_nodes](https://github.com/lonecatone23/ComfyUI_LC123_nodes) (v1.40.0 or newer).
+   - **LC Model Merge Any Precision Test**, **LC LoRA Extract Test**, **LoRA Test** and **Model test** (A / B tests with **LC Scoreboard 🏆**) are in `workflows/` too. They use LC123 nodes, and **LoRA Test** also uses LC Vision.
 6. 💡 Hard-refresh your browser (`Ctrl+Shift+R`) after updating, so the new JS chrome actually loads.
 
 ---

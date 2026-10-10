@@ -27,6 +27,8 @@ import comfy.utils
 import folder_paths
 from comfy.weight_adapter.lora import LoRAAdapter
 
+from .lc_checkpoint_save import EMBED_WORKFLOW_INPUT, ENABLED_INPUT, workflow_metadata
+
 NUM_BLOCKS = 28
 MODULES = ["attn.wq", "attn.wk", "attn.wv", "attn.wo", "attn.gate", "mlp.gate", "mlp.up", "mlp.down"]
 MODULE_LABELS = ["q", "k", "v", "o", "gate", "m.gate", "m.up", "m.down"]
@@ -312,7 +314,10 @@ class LCLoRASave:
                                  "tooltip": "0 = keep each layer's rank. Any other number re-fits every layer to that rank "
                                             "(smaller file, keeps the strongest directions)."}),
                 "dtype": (["bf16", "fp16", "fp32"], {"default": "bf16"}),
-            }
+                "enabled": ENABLED_INPUT,
+                "embed_workflow": EMBED_WORKFLOW_INPUT,
+            },
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
 
     RETURN_TYPES = ()
@@ -322,7 +327,9 @@ class LCLoRASave:
     DESCRIPTION = ("Saves an edited LoRA as a standard lora_A / lora_B safetensors file with every edit baked in, "
                    "so it loads at strength 1.0 in any LoRA loader. The edit settings are stored in the metadata.")
 
-    def save(self, lora, filename, rank, dtype):
+    def save(self, lora, filename, rank, dtype, enabled=True, embed_workflow=True, prompt=None, extra_pnginfo=None):
+        if not enabled:
+            return {"ui": {"text": ["Save is off (enabled = false): nothing written."]}}
         dt = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}[dtype]
         dev = comfy.model_management.get_torch_device()
         source = os.path.splitext(os.path.basename(lora.get("source", "lora")))[0]
@@ -360,6 +367,8 @@ class LCLoRASave:
 
         meta = {k: str(v) for k, v in (lora.get("metadata") or {}).items()}
         meta["lc_edit"] = json.dumps({"source": lora.get("source"), **lora.get("edit", {}), "rank": rank})
+        if embed_workflow:
+            meta.update(workflow_metadata(prompt, extra_pnginfo))
         comfy.utils.save_torch_file(out, path, metadata=meta)
         msg = f"Saved {os.path.relpath(path, root)} ({len(out) // 2} layers"
         msg += f", {converted} converted to rank {rank or 32})" if converted else ")"
