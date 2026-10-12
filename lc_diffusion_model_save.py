@@ -26,7 +26,7 @@ import os
 import comfy.sd
 import folder_paths
 
-from .lc_checkpoint_save import build_save_metadata, ENABLED_INPUT, EMBED_WORKFLOW_INPUT
+from .lc_checkpoint_save import build_save_metadata, ENABLED_INPUT, EMBED_WORKFLOW_INPUT, METADATA_INPUT, trim_metadata
 
 
 class LCDiffusionModelSave:
@@ -45,6 +45,7 @@ class LCDiffusionModelSave:
                 "enabled": ENABLED_INPUT,
                 "embed_workflow": EMBED_WORKFLOW_INPUT,
             },
+            "optional": {"metadata": METADATA_INPUT},
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
 
@@ -60,19 +61,21 @@ class LCDiffusionModelSave:
         "embed_workflow toggles as LC Checkpoint Save."
     )
 
-    def save(self, model, filename_prefix, enabled=True, embed_workflow=True, prompt=None, extra_pnginfo=None):
+    def save(self, model, filename_prefix, enabled=True, embed_workflow=True, metadata="keep all", prompt=None,
+             extra_pnginfo=None):
         if not enabled:
             return {}
 
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
             filename_prefix, self.output_dir
         )
-        metadata, extra_keys = build_save_metadata(model, filename, counter, embed_workflow, prompt, extra_pnginfo)
+        meta, extra_keys = build_save_metadata(model, filename, counter, embed_workflow, prompt, extra_pnginfo)
+        meta = trim_metadata(meta, metadata)
 
         output_path = f"{filename}_{counter:05}_.safetensors"
         output_path = os.path.join(full_output_folder, output_path)
 
-        comfy.sd.save_checkpoint(output_path, model, None, None, metadata=metadata, extra_keys=extra_keys)
+        comfy.sd.save_checkpoint(output_path, model, None, None, metadata=meta, extra_keys=extra_keys)
         return {}
 
 

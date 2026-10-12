@@ -105,6 +105,42 @@ EMBED_WORKFLOW_INPUT = (
 )
 
 
+METADATA_INPUT = (
+    ["keep all", "necessary only"],
+    {
+        "default": "keep all",
+        "tooltip": "keep all = everything this save normally writes (with embed_workflow on, your whole node graph). "
+        "necessary only = just what loading needs (quant settings, if any) plus the architecture and trigger words: "
+        "no workflow, no training details, no titles or edit notes. Use it before sharing a file.",
+    },
+)
+# load-critical fields (other tools' quant formats keep their layer setup here) and the two that help whoever uses it
+_NECESSARY = ("_quantization_metadata", "format", "modelspec.architecture", "modelspec.trigger_phrase")
+
+
+def trim_metadata(meta, mode):
+    """meta as is for 'keep all'; for 'necessary only' just the fields above, trigger words carried over from Kohya's
+    tag table so LoRA loaders still find them."""
+    if mode != "necessary only":
+        return meta
+    meta = meta or {}
+    out = {k: v for k, v in meta.items() if k in _NECESSARY}
+    if "modelspec.trigger_phrase" not in out:
+        words = meta.get("ss_trigger_word")
+        if not words and meta.get("ss_tag_frequency"):
+            try:
+                counts = {}
+                for tags in json.loads(meta["ss_tag_frequency"]).values():
+                    for tag, c in (tags or {}).items():
+                        counts[tag] = counts.get(tag, 0) + int(c)
+                words = ", ".join(t for t, _ in sorted(counts.items(), key=lambda kv: -kv[1])[:8])
+            except (ValueError, TypeError, AttributeError):
+                words = None
+        if words:
+            out["modelspec.trigger_phrase"] = str(words)
+    return out
+
+
 def workflow_metadata(prompt, extra_pnginfo):
     """The prompt / workflow JSON a save node embeds when embed_workflow is on (same keys as the model saves)."""
     meta = {"prompt": json.dumps(prompt) if prompt is not None else ""}
@@ -131,6 +167,7 @@ class LCCheckpointSave:
                 "enabled": ENABLED_INPUT,
                 "embed_workflow": EMBED_WORKFLOW_INPUT,
             },
+            "optional": {"metadata": METADATA_INPUT},
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
 
@@ -147,19 +184,21 @@ class LCCheckpointSave:
         "LC Diffusion Model Save instead."
     )
 
-    def save(self, model, clip, vae, filename_prefix, enabled=True, embed_workflow=True, prompt=None, extra_pnginfo=None):
+    def save(self, model, clip, vae, filename_prefix, enabled=True, embed_workflow=True, metadata="keep all",
+             prompt=None, extra_pnginfo=None):
         if not enabled:
             return {}
 
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
             filename_prefix, self.output_dir
         )
-        metadata, extra_keys = build_save_metadata(model, filename, counter, embed_workflow, prompt, extra_pnginfo)
+        meta, extra_keys = build_save_metadata(model, filename, counter, embed_workflow, prompt, extra_pnginfo)
+        meta = trim_metadata(meta, metadata)
 
         output_path = f"{filename}_{counter:05}_.safetensors"
         output_path = os.path.join(full_output_folder, output_path)
 
-        comfy.sd.save_checkpoint(output_path, model, clip, vae, metadata=metadata, extra_keys=extra_keys)
+        comfy.sd.save_checkpoint(output_path, model, clip, vae, metadata=meta, extra_keys=extra_keys)
         return {}
 
 

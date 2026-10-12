@@ -56,6 +56,7 @@ _load("lc_lora_extract")
 _load("lc_scoreboard")
 _load("lc_model_quantize")
 _load("lc_vae_tools")
+_load("lc_strip_metadata")
 
 WEB_DIRECTORY = "./web"
 

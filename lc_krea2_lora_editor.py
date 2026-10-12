@@ -27,7 +27,7 @@ import comfy.utils
 import folder_paths
 from comfy.weight_adapter.lora import LoRAAdapter
 
-from .lc_checkpoint_save import EMBED_WORKFLOW_INPUT, ENABLED_INPUT, workflow_metadata
+from .lc_checkpoint_save import EMBED_WORKFLOW_INPUT, ENABLED_INPUT, METADATA_INPUT, trim_metadata, workflow_metadata
 from .lc_lora_arch import ANIMA, KREA2
 
 NUM_BLOCKS = 28
@@ -397,6 +397,7 @@ class LCLoRASave:
                 "enabled": ENABLED_INPUT,
                 "embed_workflow": EMBED_WORKFLOW_INPUT,
             },
+            "optional": {"metadata": METADATA_INPUT},
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
 
@@ -407,7 +408,8 @@ class LCLoRASave:
     DESCRIPTION = ("Saves an edited LoRA as a standard lora_A / lora_B safetensors file with every edit baked in, "
                    "so it loads at strength 1.0 in any LoRA loader. The edit settings are stored in the metadata.")
 
-    def save(self, lora, filename, rank, dtype, enabled=True, embed_workflow=True, prompt=None, extra_pnginfo=None):
+    def save(self, lora, filename, rank, dtype, enabled=True, embed_workflow=True, metadata="keep all", prompt=None,
+             extra_pnginfo=None):
         if not enabled:
             return {"ui": {"text": ["Save is off (enabled = false): nothing written."]}}
         dt = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}[dtype]
@@ -455,6 +457,7 @@ class LCLoRASave:
         meta["lc_edit"] = json.dumps({"source": lora.get("source"), **lora.get("edit", {}), "rank": rank})
         if embed_workflow:
             meta.update(workflow_metadata(prompt, extra_pnginfo))
+        meta = trim_metadata(meta, metadata)
         comfy.utils.save_torch_file(out, path, metadata=meta)
         n_layers = sum(1 for k in out if k.endswith((".lora_B.weight", ".diff", ".diff_b")))
         msg = f"Saved {os.path.relpath(path, root)} ({n_layers} layers"

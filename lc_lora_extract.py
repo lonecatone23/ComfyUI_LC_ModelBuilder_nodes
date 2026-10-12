@@ -23,7 +23,7 @@ from safetensors.torch import save_file
 import comfy.model_management as mm
 import folder_paths
 
-from .lc_checkpoint_save import EMBED_WORKFLOW_INPUT, ENABLED_INPUT, workflow_metadata
+from .lc_checkpoint_save import EMBED_WORKFLOW_INPUT, ENABLED_INPUT, METADATA_INPUT, trim_metadata, workflow_metadata
 from .lc_model_merge_any import _SKIP_SUFFIX, _dequant, _is_quant, _param, _quantized
 
 PARTS = ["all layers", "blocks only", "custom blocks"]
@@ -78,6 +78,7 @@ class LCLoRAExtract:
                 "enabled": ENABLED_INPUT,
                 "embed_workflow": EMBED_WORKFLOW_INPUT,
             },
+            "optional": {"metadata": METADATA_INPUT},
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
 
@@ -90,7 +91,7 @@ class LCLoRAExtract:
                    "Turbo). Any precision on either side. Unchanged layers are left out of the file.")
 
     def extract(self, finetuned, base, parts, blocks, rank, keep, min_change, filename, save_dtype,
-                enabled=True, embed_workflow=True, prompt=None, extra_pnginfo=None):
+                enabled=True, embed_workflow=True, metadata="keep all", prompt=None, extra_pnginfo=None):
         if not enabled:
             msg = "Extract is off (enabled = false): nothing extracted or written."
             return {"ui": {"text": [msg]}, "result": (msg,)}
@@ -144,6 +145,7 @@ class LCLoRAExtract:
                                                 "rank": rank, "keep": keep, "min_change": min_change})}
         if embed_workflow:
             meta.update(workflow_metadata(prompt, extra_pnginfo))
+        meta = trim_metadata(meta, metadata)
         save_file(out, path, metadata=meta)
 
         size = os.path.getsize(path) / 1e9

@@ -20,6 +20,7 @@ Model and checkpoint merging tools by lonecatone23. Companion pack to [ComfyUI_L
 | LC Model Quantize 🗜️ | Saves a smaller copy of a model: fp8, mxfp8, nvfp4, int8 or int4 (load with the stock loader) or GGUF Q8_0 to Q2_K. From the wired MODEL (LoRAs and merges baked in) or straight from a file of any size. |
 | LC VAE Merge | Merges the decoders of two VAEs of the same family, coarse shapes to fine texture. The encoder stays the base's, so the result still fits the models made for it. |
 | LC VAE Save | Saves a VAE to models/vae in fp32, bf16 or fp16. |
+| LC Strip Metadata 🧹 | Cleans the metadata out of a model you already saved (embedded workflow, training details, titles). The weights are copied byte for byte, never loaded or re-saved, so it loads exactly as before. **necessary only** keeps what loading needs plus the architecture and trigger words, **everything** leaves an empty header. Writes name_clean.safetensors, or replaces the original once the copy is complete. |
 | LC VAE Compare | Decodes the same latents with up to six VAEs, side by side with a 1:1 detail crop, a sharpness number and how far each lands from the first. |
 | LC LoRA Extract | Turns a finetune into a LoRA: finetuned minus its base, all layers, blocks only or a custom block list. Unchanged layers are left out of the file. |
 | LC Anima LoRA Editor / Block Scan / Merge | 🧪 **BETA, still in testing.** The three Krea 2 LoRA tools for Anima: same controls, Anima's 28 blocks and layer types. The Block Scan scores anime faces with CCIP. |
@@ -228,6 +229,7 @@ A checkpoint means an all-in-one file, so these are two separate nodes rather th
 
 - **`enabled`**: off skips the save entirely, no file written. A save node has no outputs, so ComfyUI's native bypass has nothing to pass through — this is a real toggle you can convert to an input and wire from a switch elsewhere in the graph.
 - **`embed_workflow`**: per-save control over whether the prompt/workflow JSON goes into the file's metadata, independent of the `--disable-metadata` launch flag core's node is stuck reading. 💡 Turn this off before sharing a model if you don't want your exact node graph attached to the file.
+- **`metadata`**: **keep all** (default) writes everything as before. **necessary only** keeps just what loading needs (quant settings, if any) plus the architecture and trigger words: no workflow, no training details, no titles or edit notes. On LC Checkpoint Save, LC Diffusion Model Save, LC LoRA Save and LC LoRA Extract. 💡 The quickest way to share a file clean.
 
 **LC Checkpoint Save**: `model`, `clip`, and `vae` are all required. `filename_prefix` defaults to `checkpoints/LC_ModelBuilder`.
 

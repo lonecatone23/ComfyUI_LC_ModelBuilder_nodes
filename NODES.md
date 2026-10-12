@@ -21,6 +21,7 @@ Registered class IDs:
 * LCModelQuantize
 * LCVAEMerge
 * LCVAESave
+* LCStripMetadata
 * LCVAECompare
 
 Comfy Registry discovers nodes from NODE_CLASS_MAPPINGS at publish time.
