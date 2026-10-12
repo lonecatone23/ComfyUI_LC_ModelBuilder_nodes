@@ -27,8 +27,9 @@ import comfy.model_management
 import folder_paths
 from comfy.weight_adapter.lora import LoRAAdapter
 
-from .lc_krea2_lora_editor import (MODULE_LABELS, MODULES, NUM_BLOCKS, _key_of, _load_lora_file, _lora_scale,
-                                   _lowrank_norm, _parse_curve, _plain, _where)
+from .lc_krea2_lora_editor import (NUM_BLOCKS, _key_of, _load_lora_file, _lora_scale, _lowrank_norm, _parse_curve,
+                                   _plain)
+from .lc_lora_arch import ANIMA, KREA2
 
 def _face(lo: int, hi: int) -> list[float]:
     """B inside the window, A outside, with a block at 'both full' on each side so the hand-over is not a cliff."""
@@ -71,6 +72,8 @@ def _full(adapter, key, shape, dev):
     lr = _lowrank(adapter, key, None, dev)
     if lr is not None:
         return lr[0] @ lr[1]
+    if isinstance(adapter, tuple) and adapter[0] == "diff":  # a plain weight difference (e.g. a bias from LC LoRA Extract)
+        return adapter[1][0].to(dev, torch.float32).reshape(shape)
     z = torch.zeros(shape, dtype=torch.float32, device=dev)
     return adapter.calculate_weight(z, key, 1.0, 1.0, None, lambda a: a, torch.float32)
 
@@ -154,10 +157,14 @@ class LCKrea2LoRAMerge:
     DESCRIPTION = ("Merges two to four Krea 2 LoRAs with a per-block A / B curve (sum or TIES), applies the result to the "
                    "model and outputs it for LC LoRA Save. The heatmaps show A's and B's share and the merged result.")
 
+    ARCH = KREA2
+    PRESET_TABLE = PRESETS
+
     def merge(self, model, lora_a, lora_b, strength_a, strength_b, method, preset, blocks, ties_density, mix=0.5,
               blocks_in=None, lora_c="None", strength_c=1.0, lora_d="None", strength_d=1.0, **_old):
         # _old: settings from earlier saves that no longer exist (balance)
-        curve = _parse01(blocks_in) if blocks_in else (PRESETS.get(preset) or _parse01(blocks))
+        arch = self.ARCH
+        curve = _parse01(blocks_in) if blocks_in else (self.PRESET_TABLE.get(preset) or _parse01(blocks))
         dev = comfy.model_management.get_torch_device()
         key_map = comfy.lora.model_lora_keys_unet(model.model, {})
 
@@ -175,12 +182,12 @@ class LCKrea2LoRAMerge:
                 src.append((load(name), lambda wa, wb, st=float(st): st))
         model_sd = None
         layers, patches = {}, {}
-        maps = {n: [[0.0] * NUM_BLOCKS for _ in MODULES] for n in ("a", "b", "m")}
+        maps = {n: [[0.0] * NUM_BLOCKS for _ in arch.rows] for n in ("a", "b", "m")}
         outside = 0
         mix_a, mix_b = _weights(max(0.0, min(1.0, float(mix))))
         for key in sorted(set().union(*(set(p) for p, _ in src))):
             comfy.model_management.throw_exception_if_processing_interrupted()
-            where = _where(key)
+            where = arch.where(key)
             # layers outside the 28 blocks (text fusion) follow the curve's average, so "A only" really is A only
             wa, wb = _weights(curve[where[0]] if where else sum(curve) / len(curve))
             wa, wb = wa * mix_a, wb * mix_b
@@ -211,6 +218,13 @@ class LCKrea2LoRAMerge:
             else:
                 deltas = [fulls[x[0]] * x[2] for x in parts]
                 delta = _ties(deltas, float(ties_density)) if method == "ties" and len(deltas) > 1 else sum(deltas)
+                if delta.ndim < 2:  # biases and norms stay plain differences, no low-rank fit
+                    d = delta.to(torch.bfloat16).cpu()
+                    layers[key] = {"kind": "diff", "delta": d}
+                    patches[key] = ("diff", (d,))
+                    if not where:
+                        outside += 1
+                    continue
                 rank = sum(int(x[1].weights[1].shape[0]) for x in parts if _plain(x[1])) or 32
                 up, down = _refit(delta.reshape(delta.shape[0], -1), min(MAX_RANK, rank))
                 del deltas, delta, fulls
@@ -233,9 +247,9 @@ class LCKrea2LoRAMerge:
         if outside:
             note += f" · {outside} outside the blocks"
         if len(applied) < len(patches):
-            note += " · some layers do not match this model: are they all Krea 2 LoRAs?"
+            note += f" · some layers do not match this model: are they all {arch.title} LoRAs?"
         lora_obj = {
-            "arch": "krea2", "source": "+".join(name(u) for u in used), "layers": layers, "shapes": {},
+            "arch": arch.name, "source": "+".join(name(u) for u in used), "layers": layers, "shapes": {},
             "metadata": {},
             "edit": {"merge": method, "lora_a": lora_a, "lora_b": lora_b, "strength_a": strength_a,
                      "strength_b": strength_b, "lora_c": lora_c, "strength_c": strength_c, "lora_d": lora_d,
@@ -243,10 +257,38 @@ class LCKrea2LoRAMerge:
                      "ties_density": ties_density},
         }
         ui = {"lc_lora_map": [{"maps": [["LoRA A", maps["a"]], ["LoRA B", maps["b"]], ["merged", maps["m"]]],
-                               "rows": MODULE_LABELS, "note": note, "curve": [round(v, 4) for v in curve],
+                               "rows": arch.labels, "note": note, "curve": [round(v, 4) for v in curve],
                                "wired": bool(blocks_in)}]}
         return {"ui": ui, "result": (m, lora_obj)}
 
 
-NODE_CLASS_MAPPINGS = {"LCKrea2LoRAMerge": LCKrea2LoRAMerge}
-NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRAMerge": "LC Krea2 LoRA Merge"}
+ANIMA_PRESETS = {
+    "Both full": [0.5] * NUM_BLOCKS,
+    "A early, B late": [0.0 if i < 14 else 1.0 for i in range(NUM_BLOCKS)],
+    "B early, A late": [1.0 if i < 14 else 0.0 for i in range(NUM_BLOCKS)],
+    "A only": [0.0] * NUM_BLOCKS,
+    "B only": [1.0] * NUM_BLOCKS,
+}
+
+
+class LCAnimaLoRAMerge(LCKrea2LoRAMerge):
+    """The LoRA Merge for Anima: same methods, Anima's 28 blocks and layer rows."""
+    ARCH = ANIMA
+    PRESET_TABLE = ANIMA_PRESETS
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        d = super().INPUT_TYPES()
+        d["required"]["model"] = ("MODEL", {"tooltip": "Anima model. The merged LoRA is applied to it, like a LoRA loader."})
+        d["required"]["preset"] = ([*ANIMA_PRESETS, "Custom"], {"default": "Both full",
+                                   "tooltip": "Per block: 0 = only A, 0.5 = both at full strength, 1 = only B. Dragging "
+                                              "the graph switches to Custom."})
+        return d
+
+    CATEGORY = "LC ModelBuilder/Anima"
+    DESCRIPTION = ("Merges two to four Anima LoRAs with a per-block A / B curve (sum or TIES), applies the result to the "
+                   "model and outputs it for LC LoRA Save. The heatmaps show A's and B's share and the merged result.")
+
+
+NODE_CLASS_MAPPINGS = {"LCKrea2LoRAMerge": LCKrea2LoRAMerge, "LCAnimaLoRAMerge": LCAnimaLoRAMerge}
+NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRAMerge": "LC Krea2 LoRA Merge", "LCAnimaLoRAMerge": "LC Anima LoRA Merge"}

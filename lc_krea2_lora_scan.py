@@ -20,7 +20,7 @@ import comfy.utils
 import folder_paths
 import nodes
 
-from .lc_krea2_lora_editor import NUM_BLOCKS, LCKrea2LoRAEditor
+from .lc_krea2_lora_editor import NUM_BLOCKS, LCAnimaLoRAEditor, LCKrea2LoRAEditor
 
 FACE_DROP = 0.03  # a group counts as face lock when turning it off lowers the same-face score by this much (8-seed noise is about 0.02)
 
@@ -31,7 +31,7 @@ def _groups(text: str):
         p = part.strip().lower()
         if not p:
             continue
-        if p in ("fusion", "outside", "txtfusion"):
+        if p in ("fusion", "outside", "txtfusion", "adapter"):
             out.append(("fusion", None))
             continue
         try:
@@ -146,20 +146,26 @@ class LCKrea2LoRABlockScan:
                    "scores face lock (same-face score) and change against the base model and the full LoRA. Finds the "
                    "blocks to turn down in LC Krea2 LoRA Editor.")
 
+    EDITOR = LCKrea2LoRAEditor
+    FACE = "arcface"         # arcface (photo faces) or ccip (anime characters)
+    FACE_DROP = FACE_DROP
+    OUTSIDE_LABEL = "Fusion off"
+    TITLE = "LC Krea2 LoRA Block Scan"
+
     def scan(self, model, vae, positive, lora_name, strength, groups, off_value, seed, images, width, height,
              steps, cfg, sampler_name, scheduler, negative=None):
-        from .lc_face_variety import _mean_pair_sim, _sessions, _detect, _embed  # needs onnxruntime
+        face_drop = self.FACE_DROP
 
         if negative is None:
             negative = nodes.ConditioningZeroOut().zero_out(positive)[0]
         latent = nodes.EmptyLatentImage().generate(width, height, images)[0]
         groups_ = _groups(groups)
-        editor = LCKrea2LoRAEditor()
+        editor = self.EDITOR()
         ones = ", ".join(["1"] * NUM_BLOCKS)
         plan = [("No LoRA", None, None), ("Full LoRA", ones, 1.0)]
         for name, rng in groups_:
             if rng is None:
-                plan.append(("Fusion off", ones, off_value))
+                plan.append((self.OUTSIDE_LABEL, ones, off_value))
             else:
                 c = ["1"] * NUM_BLOCKS
                 for i in range(rng[0], rng[1] + 1):
@@ -181,6 +187,19 @@ class LCKrea2LoRABlockScan:
             pbar.update(1)
 
         # scores
+        if self.FACE == "ccip":
+            from .lc_ccip import same_character
+
+            def face_score(imgs):
+                share, _, n = same_character(imgs)
+                return share, n
+        else:
+            face_score = self._arcface_score()
+        return self._report(renders, face_score, face_drop, lora_name, strength, images, seed)
+
+    @staticmethod
+    def _arcface_score():
+        from .lc_face_variety import _mean_pair_sim, _sessions, _detect, _embed  # needs onnxruntime
         det, rec = _sessions("auto")
 
         def face_score(imgs):
@@ -194,7 +213,9 @@ class LCKrea2LoRABlockScan:
                     embs.append(_embed(rec, rgb, kps[j]))
             s, sims = _mean_pair_sim(embs)
             return (s if sims else float("nan")), len(embs)
+        return face_score
 
+    def _report(self, renders, face_score, face_drop, lora_name, strength, images, seed):
         base, full = renders[0][2], renders[1][2]
         rows, stats = [], []
         metric = "LPIPS"
@@ -205,7 +226,8 @@ class LCKrea2LoRABlockScan:
             st = {"label": label, "curve": curve, "face": fs, "faces": nf,
                   "vs_base": float(np.mean(vb)), "vs_full": float(np.mean(vf))}
             stats.append(st)
-            lines = [label, f"same face {fs:.3f}" if fs == fs else "same face n/a (no faces)"]
+            word = "same character" if self.FACE == "ccip" else "same face"
+            lines = [label, f"{word} {fs:.3f}" if fs == fs else f"{word} n/a (no faces)"]
             if label != "No LoRA":
                 lines.append(f"change vs base {st['vs_base']:.3f}")
             if label not in ("No LoRA", "Full LoRA"):
@@ -216,7 +238,8 @@ class LCKrea2LoRABlockScan:
         full_face = stats[1]["face"]
         tests = stats[2:]
         suggest = [1.0] * NUM_BLOCKS
-        rep = [f"LC Krea2 LoRA Block Scan: {lora_name} at {strength:g}, {images} seeds from {seed}, change = {metric}", ""]
+        unit = "same character (CCIP, share of pairs)" if self.FACE == "ccip" else "same face (ArcFace)"
+        rep = [f"{self.TITLE}: {lora_name} at {strength:g}, {images} seeds from {seed}, change = {metric}, face = {unit}", ""]
         rep.append(f"{'row':<18}{'same face':>10}{'vs base':>10}{'vs LoRA':>10}")
         for st in stats:
             f_ = f"{st['face']:.3f}" if st["face"] == st["face"] else "n/a"
@@ -231,20 +254,20 @@ class LCKrea2LoRABlockScan:
             lock = full_face - stats[0]["face"] if stats[0]["face"] == stats[0]["face"] else float("nan")
             if lock == lock:
                 rep.append(f"Face lock: the LoRA moves the same-face score {lock:+.3f} from the base model.")
-            if lock == lock and lock < FACE_DROP and drop < FACE_DROP:
-                rep.append("That is within the seed noise (0.03): this LoRA barely locks the face, so there is nothing "
+            if lock == lock and lock < face_drop and drop < face_drop:
+                rep.append(f"That is within the seed noise ({face_drop:g}): this LoRA barely locks the face, so there is nothing "
                            "to turn down for it. Best group anyway: "
                            f"{best['label']} ({best['face']:.3f}).")
-            elif drop >= FACE_DROP and best["curve"] is not None and best["label"] != "Fusion off":
+            elif drop >= face_drop and best["curve"] is not None and best["label"] != self.OUTSIDE_LABEL:
                 for i, v in enumerate(best["curve"].split(",")):
                     if float(v) < 1:
                         suggest[i] = 0.3
                 rep.append(f"{best['label']} frees the face most ({best['face']:.3f}, {-drop:+.3f}). Suggested curve: "
                            f"that group at 0.3.")
-            elif drop >= FACE_DROP:
+            elif drop >= face_drop:
                 rep.append(f"{best['label']} frees the face most ({best['face']:.3f}): set outside_blocks down in the Editor.")
             else:
-                rep.append("No single group frees the face by more than the seed noise (0.03). Try smaller groups, "
+                rep.append(f"No single group frees the face by more than the seed noise ({face_drop:g}). Try smaller groups, "
                            "or spike_soften directions in the Editor.")
         else:
             rep.append("Not enough faces found to score face lock. Use a prompt with one clear face.")
@@ -261,5 +284,39 @@ class LCKrea2LoRABlockScan:
         return {"ui": ui, "result": (grid, report, blocks)}
 
 
-NODE_CLASS_MAPPINGS = {"LCKrea2LoRABlockScan": LCKrea2LoRABlockScan}
-NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRABlockScan": "LC Krea2 LoRA Block Scan"}
+class LCAnimaLoRABlockScan(LCKrea2LoRABlockScan):
+    """The Block Scan for Anima. Face lock is scored with CCIP (anime characters), not ArcFace."""
+    EDITOR = LCAnimaLoRAEditor
+    FACE = "ccip"
+    FACE_DROP = 0.15  # share of same-character pairs; 8 seeds = 28 pairs, so about 0.1 is noise
+    OUTSIDE_LABEL = "Outside off"
+    TITLE = "LC Anima LoRA Block Scan"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        d = super().INPUT_TYPES()
+        r = d["required"]
+        r["model"] = ("MODEL", {"tooltip": "Anima model, without the LoRA."})
+        r["positive"] = ("CONDITIONING", {"tooltip": "A prompt that shows one character (for face lock) and a scene."})
+        r["groups"] = ("STRING", {"default": "0-6, 7-13, 14-20, 21-27, outside",
+                                  "tooltip": "Block groups to turn off one at a time, comma separated. outside = the LLM "
+                                             "adapter and final layer. Each group is one more row of renders."})
+        r["steps"] = ("INT", {"default": 30, "min": 1, "max": 100})
+        r["cfg"] = ("FLOAT", {"default": 4.5, "min": 0.0, "max": 30.0, "step": 0.1})
+        r["sampler_name"] = (comfy.samplers.KSampler.SAMPLERS, {"default": "er_sde"})
+        r["width"] = ("INT", {"default": 896, "min": 256, "max": 2048, "step": 32})
+        r["height"] = ("INT", {"default": 1152, "min": 256, "max": 2048, "step": 32})
+        d["optional"]["negative"] = ("CONDITIONING", {"tooltip": "Optional, but Anima at cfg above 1 wants a real negative."})
+        return d
+
+    OUTPUT_TOOLTIPS = ("One row per render set: no LoRA, full LoRA, then each group off.",
+                       "Scores per row and what they suggest.",
+                       "Suggested 28-block curve. Wire into LC Anima LoRA Editor's blocks_in.")
+    CATEGORY = "LC ModelBuilder/Anima"
+    DESCRIPTION = ("Renders a fixed seed batch without the LoRA, with it, and with each block group turned off, then "
+                   "scores face lock (same character, CCIP) and change against the base model and the full LoRA. Finds "
+                   "the blocks to turn down in LC Anima LoRA Editor. CCIP downloads once (about 150 MB).")
+
+
+NODE_CLASS_MAPPINGS = {"LCKrea2LoRABlockScan": LCKrea2LoRABlockScan, "LCAnimaLoRABlockScan": LCAnimaLoRABlockScan}
+NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRABlockScan": "LC Krea2 LoRA Block Scan", "LCAnimaLoRABlockScan": "LC Anima LoRA Block Scan"}

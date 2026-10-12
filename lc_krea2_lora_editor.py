@@ -28,6 +28,7 @@ import folder_paths
 from comfy.weight_adapter.lora import LoRAAdapter
 
 from .lc_checkpoint_save import EMBED_WORKFLOW_INPUT, ENABLED_INPUT, workflow_metadata
+from .lc_lora_arch import ANIMA, KREA2
 
 NUM_BLOCKS = 28
 MODULES = ["attn.wq", "attn.wk", "attn.wv", "attn.wo", "attn.gate", "mlp.gate", "mlp.up", "mlp.down"]
@@ -37,15 +38,24 @@ _BLOCK_RE = re.compile(r"(?:^|\.)blocks\.(\d+)\.((?:attn|mlp)\.\w+)\.weight$")
 # Block multipliers per preset (1 = unchanged). Where a LoRA keeps its face lock differs per LoRA
 # (tested: Better Lip Bite in blocks 16-21, Krea Amateur V4 in 4-9), so the presets are block groups
 # to try, not named jobs. "Tame" is the recipe that fixed Lip Bite's whole-image change.
-_GROUPS = {"Blocks 0-3 down": (0, 3), "Blocks 4-9 down": (4, 9), "Blocks 10-15 down": (10, 15),
-           "Blocks 16-21 down": (16, 21), "Blocks 22-27 down": (22, 27)}
+# Each group preset turns its blocks down to 0.3. Names follow what the blocks do in Krea 2 (block merge tests):
+# 0-3 layout, 4-9 and 16-21 are where tested LoRAs held their face lock, 22-27 colour, skin and texture.
+_GROUPS = {"Early blocks: structure (0-3)": (0, 3), "Face blocks (4-9)": (4, 9),
+           "Mid blocks: face and body (10-15)": (10, 15), "Late face blocks (16-21)": (16, 21),
+           "Finish: color and skin (22-27)": (22, 27)}
+_TAME = "Tame whole image (4-15 at 0.7)"
+# names used before 0.4.1, so saved workflows keep their preset
+LEGACY = {"Blocks 0-3 down": "Early blocks: structure (0-3)", "Blocks 4-9 down": "Face blocks (4-9)",
+          "Blocks 10-15 down": "Mid blocks: face and body (10-15)", "Blocks 16-21 down": "Late face blocks (16-21)",
+          "Blocks 22-27 down": "Finish: color and skin (22-27)", "Tame (4-15 at 0.7)": _TAME}
 
 
 def _preset_curve(name: str) -> list[float] | None:
     c = [1.0] * NUM_BLOCKS
+    name = LEGACY.get(name, name)
     if name == "Full":
         return c
-    if name == "Tame (4-15 at 0.7)":
+    if name == _TAME:
         return [0.7 if 4 <= i <= 15 else 1.0 for i in range(NUM_BLOCKS)]
     if name in _GROUPS:
         lo, hi = _GROUPS[name]
@@ -53,7 +63,7 @@ def _preset_curve(name: str) -> list[float] | None:
     return None
 
 
-PRESETS = ["Full", *_GROUPS, "Tame (4-15 at 0.7)", "Custom"]
+PRESETS = ["Full", *_GROUPS, _TAME, "Custom"]
 
 
 def _parse_curve(text) -> list[float]:
@@ -132,11 +142,11 @@ class LCKrea2LoRAEditor:
                 "strength": ("FLOAT", {"default": 1.0, "min": -4.0, "max": 4.0, "step": 0.05,
                                        "tooltip": "Overall LoRA strength, same as a LoRA loader. Baked into the saved LoRA."}),
                 "preset": (PRESETS, {"default": "Full",
-                                     "tooltip": "Full = the LoRA as it is. Blocks X-Y down = that group at 0.3: face lock sits in "
-                                                "different blocks for each LoRA, so try each group on a fixed seed batch and keep the one "
-                                                "that frees the face (Lip Bite: 16-21, Amateur V4: 4-9). Tame = blocks 4-15 at 0.7, "
-                                                "which with spike_soften directions stopped Lip Bite changing the whole image. "
-                                                "Dragging the graph switches to Custom."}),
+                                     "tooltip": "Full = the LoRA as it is. Each block group preset turns those blocks down to 0.3. "
+                                                "Face lock sits in different blocks for each LoRA (Lip Bite: late face blocks 16-21, "
+                                                "Amateur V4: face blocks 4-9), so try each on a fixed seed batch and keep the one that "
+                                                "frees the face. Tame whole image = blocks 4-15 at 0.7, which with spike_soften directions "
+                                                "stopped Lip Bite changing the whole image. Dragging the graph switches to Custom."}),
                 "blocks": ("STRING", {"default": ", ".join(["1"] * NUM_BLOCKS),
                                       "tooltip": "28 block multipliers, 0 to 2 (1 = unchanged). Drag the bars on the node."}),
                 "attention": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05,
@@ -163,6 +173,13 @@ class LCKrea2LoRAEditor:
             },
         }
 
+    @classmethod
+    def VALIDATE_INPUTS(cls, preset=None, **kwargs):
+        # old preset names from saved workflows are mapped in edit()
+        if preset is not None and preset not in PRESETS and preset not in LEGACY:
+            return f"unknown preset: {preset}"
+        return True
+
     RETURN_TYPES = ("MODEL", "LC_LORA")
     RETURN_NAMES = ("model", "edited_lora")
     OUTPUT_TOOLTIPS = ("The model with the edited LoRA applied.", "The edited LoRA, for LC LoRA Save.")
@@ -174,13 +191,21 @@ class LCKrea2LoRAEditor:
         "and after (fill) the edits."
     )
 
+    ARCH = KREA2
+
+    @classmethod
+    def preset_curve(cls, name):
+        return _preset_curve(name)
+
     def edit(self, model, lora_name, strength, preset, blocks, attention, mlp, outside_blocks,
              spike_soften, spike_limit, blocks_in=None):
+        arch = self.ARCH
         path = folder_paths.get_full_path_or_raise("loras", lora_name)
         sd, meta = _load_lora_file(path)
         key_map = comfy.lora.model_lora_keys_unet(model.model, {})
         patches = comfy.lora.load_lora(sd, key_map, log_missing=False)
-        curve = _parse_curve(blocks_in) if blocks_in else (_preset_curve(preset) or _parse_curve(blocks))
+        preset = LEGACY.get(preset, preset)
+        curve = _parse_curve(blocks_in) if blocks_in else (self.preset_curve(preset) or _parse_curve(blocks))
         soften_layers = spike_soften in ("layers", "both")
         soften_dirs = spike_soften in ("directions", "both")
         dev = comfy.model_management.get_torch_device()
@@ -190,7 +215,7 @@ class LCKrea2LoRAEditor:
         layers = []
         for pk, ad in patches.items():
             k = _key_of(pk)
-            where = _where(k)
+            where = arch.where(k)
             if _plain(ad):
                 up = ad.weights[0].to(dev, torch.float32)
                 down = ad.weights[1].to(dev, torch.float32)
@@ -200,7 +225,9 @@ class LCKrea2LoRAEditor:
                     model_sd = model.model.state_dict()
                 w = model_sd.get(k)
                 norm = 0.0
-                if w is not None:
+                if isinstance(ad, tuple) and ad[0] == "diff":  # a plain weight difference (e.g. a bias)
+                    norm = float(ad[1][0].float().norm())
+                elif w is not None:
                     try:
                         z = torch.zeros(w.shape, dtype=torch.float32, device=dev)
                         norm = float(ad.calculate_weight(z, k, 1.0, 1.0, None, lambda a: a, torch.float32).norm())
@@ -211,7 +238,7 @@ class LCKrea2LoRAEditor:
 
         # 2. per-layer multiplier: block curve x attention / mlp, and the layer spike cap
         medians = {}
-        for row in range(len(MODULES)):
+        for row in range(len(arch.rows)):
             vals = sorted(L["norm"] for L in layers if L["where"] and L["where"][1] == row and L["norm"] > 0)
             if vals:
                 medians[row] = vals[len(vals) // 2]
@@ -221,7 +248,7 @@ class LCKrea2LoRAEditor:
                 s = outside_blocks
             else:
                 b, row = L["where"]
-                s = curve[b] * (attention if row < 5 else mlp)
+                s = curve[b] * arch.mult(row, attention, mlp)
                 if soften_layers and row in medians and L["norm"] > spike_limit * medians[row]:
                     s *= spike_limit * medians[row] / L["norm"]
                     capped += 1
@@ -261,9 +288,9 @@ class LCKrea2LoRAEditor:
         if meta:
             m.set_attachments("lora_metadata", meta)
 
-        # 4. heatmap for the node: 8 rows x 28 blocks, before and after
-        before = [[0.0] * NUM_BLOCKS for _ in MODULES]
-        after = [[0.0] * NUM_BLOCKS for _ in MODULES]
+        # 4. heatmap for the node: one row per layer type x 28 blocks, before and after
+        before = [[0.0] * NUM_BLOCKS for _ in arch.rows]
+        after = [[0.0] * NUM_BLOCKS for _ in arch.rows]
         outside = 0
         for L in layers:
             if L["where"] is None:
@@ -275,7 +302,8 @@ class LCKrea2LoRAEditor:
         tot_b = math.sqrt(sum(L["norm"] ** 2 for L in layers)) or 1.0
         tot_a = math.sqrt(sum(L["after"] ** 2 for L in layers))
         ranks = sorted({int(L["ad"].weights[1].shape[0]) for L in layers if _plain(L["ad"])})
-        note = [f"{len(applied)} of {len(patches)} layers applied" + (f", rank {'/'.join(map(str, ranks))}" if ranks else "")]
+        rank_txt = "/".join(map(str, ranks)) if len(ranks) <= 4 else f"{ranks[0]}-{ranks[-1]}"
+        note = [f"{len(applied)} of {len(patches)} layers applied" + (f", rank {rank_txt}" if ranks else "")]
         note.append(f"strength kept {100 * tot_a / tot_b:.0f} %")
         if soften_layers:
             note.append(f"{capped} layers capped")
@@ -284,10 +312,10 @@ class LCKrea2LoRAEditor:
         if outside:
             note.append(f"{outside} outside the blocks")
         if len(applied) < len(patches):
-            note.append("some layers do not match this model: is it a Krea 2 LoRA?")
+            note.append(f"some layers do not match this model: is it a {arch.title} LoRA?")
 
         lora_obj = {
-            "arch": "krea2",
+            "arch": arch.name,
             "source": lora_name,
             "layers": out_layers,
             "shapes": shapes,
@@ -296,9 +324,61 @@ class LCKrea2LoRAEditor:
                      "attention": attention, "mlp": mlp, "outside_blocks": outside_blocks,
                      "spike_soften": spike_soften, "spike_limit": spike_limit},
         }
-        ui = {"lc_lora_map": [{"before": before, "after": after, "rows": MODULE_LABELS, "note": " · ".join(note),
+        ui = {"lc_lora_map": [{"before": before, "after": after, "rows": arch.labels, "note": " · ".join(note),
                                 "curve": [round(v, 4) for v in curve], "wired": bool(blocks_in)}]}
         return {"ui": ui, "result": (m, lora_obj)}
+
+
+# Anima block groups, named after the Animosity Anima block scan (README): turning 7-13 or 14-20 off changes the
+# picture most (the LoRA's look lives there), 0-6 and 21-27 much less. Each preset turns its blocks down to 0.3.
+ANIMA_GROUPS = {"Early blocks (0-6)": (0, 6), "Mid blocks: look (7-13)": (7, 13),
+                "Mid blocks: look and character (14-20)": (14, 20), "Late blocks: finish (21-27)": (21, 27)}
+ANIMA_PRESETS = ["Full", *ANIMA_GROUPS, "Custom"]
+
+
+class LCAnimaLoRAEditor(LCKrea2LoRAEditor):
+    """The LoRA Editor for Anima: same edits, Anima's 28 blocks and layer rows."""
+    ARCH = ANIMA
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        d = super().INPUT_TYPES()
+        r = d["required"]
+        r["model"] = ("MODEL", {"tooltip": "Anima model. The edited LoRA is applied to it, like a LoRA loader."})
+        r["preset"] = (ANIMA_PRESETS, {"default": "Full",
+                                       "tooltip": "Full = the LoRA as it is. Each block group preset turns those blocks "
+                                                  "down to 0.3. Try each on a fixed seed batch and keep the one that frees "
+                                                  "the face. Dragging the graph switches to Custom."})
+        r["attention"] = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05,
+                                    "tooltip": "Multiplier for the attention layers (self and cross attention) in every block."})
+        r["mlp"] = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05,
+                              "tooltip": "Multiplier for the MLP layers in every block."})
+        r["outside_blocks"] = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05,
+                                         "tooltip": "Multiplier for layers outside the 28 blocks (LLM adapter, final layer), "
+                                                    "if the LoRA has any. The heatmap note says how many."})
+        d["optional"]["blocks_in"] = ("STRING", {"forceInput": True,
+                                                 "tooltip": "A 28-block curve from another node, such as LC Anima LoRA Block "
+                                                            "Scan's blocks output. When wired it replaces the preset and the bars."})
+        return d
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, preset=None, **kwargs):
+        return True if preset is None or preset in ANIMA_PRESETS else f"unknown preset: {preset}"
+
+    @classmethod
+    def preset_curve(cls, name):
+        if name == "Full":
+            return [1.0] * NUM_BLOCKS
+        if name in ANIMA_GROUPS:
+            lo, hi = ANIMA_GROUPS[name]
+            return [0.3 if lo <= i <= hi else 1.0 for i in range(NUM_BLOCKS)]
+        return None
+
+    CATEGORY = "LC ModelBuilder/Anima"
+    DESCRIPTION = (
+        "Loads an Anima LoRA with per-block, attention / MLP and spike edits, applies it to the model and outputs the "
+        "edited LoRA for LC LoRA Save. The heatmap shows each layer's strength before and after the edits."
+    )
 
 
 class LCLoRASave:
@@ -306,7 +386,7 @@ class LCLoRASave:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "lora": ("LC_LORA", {"tooltip": "Edited LoRA from LC Krea2 LoRA Editor."}),
+                "lora": ("LC_LORA", {"tooltip": "Edited or merged LoRA from an LC LoRA Editor or LoRA Merge (Krea 2 or Anima)."}),
                 "filename": ("STRING", {"default": "edited/%source%_edit",
                                         "tooltip": "Saved under models/loras. %source% = the original LoRA's name. "
                                                    "A number is added if the file exists."}),
@@ -347,6 +427,9 @@ class LCLoRASave:
         out, converted = {}, 0
         for key, L in lora["layers"].items():
             name = key[:-7] if key.endswith(".weight") else key
+            if L["kind"] == "diff":  # a plain difference (bias or norm) from LoRA Merge
+                out[f"{key[:-5]}.diff_b" if key.endswith(".bias") else f"{name}.diff"] = L["delta"].to(dt).cpu().contiguous()
+                continue
             if L["kind"] == "lora":
                 up, down = L["up"].to(dev, torch.float32), L["down"].to(dev, torch.float32)
                 if rank and rank < up.shape[1]:
@@ -358,6 +441,9 @@ class LCLoRASave:
                 if delta is None:
                     continue
                 delta = delta * L["scale"]
+                if delta.ndim < 2:  # biases and norms are saved as plain differences
+                    out[f"{key[:-5]}.diff_b" if key.endswith(".bias") else f"{name}.diff"] = delta.to(dt).cpu().contiguous()
+                    continue
                 r = rank or 32
                 u, s, v = torch.svd_lowrank(delta.flatten(1), q=min(r + 8, min(delta.shape[0], delta.flatten(1).shape[1])))
                 up, down = u[:, :r] * s[:r], v[:, :r].T
@@ -370,7 +456,8 @@ class LCLoRASave:
         if embed_workflow:
             meta.update(workflow_metadata(prompt, extra_pnginfo))
         comfy.utils.save_torch_file(out, path, metadata=meta)
-        msg = f"Saved {os.path.relpath(path, root)} ({len(out) // 2} layers"
+        n_layers = sum(1 for k in out if k.endswith((".lora_B.weight", ".diff", ".diff_b")))
+        msg = f"Saved {os.path.relpath(path, root)} ({n_layers} layers"
         msg += f", {converted} converted to rank {rank or 32})" if converted else ")"
         print(f"[LC Modelbuilder] {msg}")
         return {"ui": {"text": [msg]}}
@@ -380,9 +467,13 @@ class LCLoRASave:
         shape = lora.get("shapes", {}).get(key)
         if shape is None:
             return None
+        if isinstance(adapter, tuple) and adapter[0] == "diff":
+            return adapter[1][0].to(comfy.model_management.get_torch_device(), torch.float32).reshape(shape)
         z = torch.zeros(shape, dtype=torch.float32, device=comfy.model_management.get_torch_device())
         return adapter.calculate_weight(z, key, 1.0, 1.0, None, lambda a: a, torch.float32)
 
 
-NODE_CLASS_MAPPINGS = {"LCKrea2LoRAEditor": LCKrea2LoRAEditor, "LCLoRASave": LCLoRASave}
-NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRAEditor": "LC Krea2 LoRA Editor", "LCLoRASave": "LC LoRA Save"}
+NODE_CLASS_MAPPINGS = {"LCKrea2LoRAEditor": LCKrea2LoRAEditor, "LCLoRASave": LCLoRASave,
+                       "LCAnimaLoRAEditor": LCAnimaLoRAEditor}
+NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRAEditor": "LC Krea2 LoRA Editor", "LCLoRASave": "LC LoRA Save",
+                              "LCAnimaLoRAEditor": "LC Anima LoRA Editor"}

@@ -50,9 +50,12 @@ _load("lc_face_variety")
 _load("lc_krea2_lora_editor")
 _load("lc_krea2_lora_scan")
 _load("lc_krea2_lora_merge")
+_load("lc_anima_block_merge")
 _load("lc_model_merge_any")
 _load("lc_lora_extract")
 _load("lc_scoreboard")
+_load("lc_model_quantize")
+_load("lc_vae_tools")
 
 WEB_DIRECTORY = "./web"
 

@@ -73,8 +73,8 @@ _BUILTIN_PRESET_NAMES = [
 ]
 
 
-def _ensure_dir():
-    os.makedirs(_PRESET_DIR, exist_ok=True)
+def _ensure_dir(d=_PRESET_DIR):
+    os.makedirs(d, exist_ok=True)
 
 
 def _sanitize(name: str) -> str:
@@ -83,11 +83,11 @@ def _sanitize(name: str) -> str:
     return name[:80] or "custom"
 
 
-def _list_saved() -> list[str]:
-    _ensure_dir()
+def _list_saved(d=_PRESET_DIR) -> list[str]:
+    _ensure_dir(d)
     names = set()
     try:
-        for fn in os.listdir(_PRESET_DIR):
+        for fn in os.listdir(d):
             if fn.endswith(".json") and fn != "index.json":
                 names.add(fn[:-5])
     except OSError:
@@ -95,10 +95,11 @@ def _list_saved() -> list[str]:
     return sorted(names)
 
 
-def _preset_choices() -> list[str]:
-    saved = _list_saved()
-    builtins = [n for n in _BUILTIN_PRESET_NAMES if n in saved]
-    custom = sorted(n for n in saved if n not in _BUILTIN_PRESET_NAMES)
+def _preset_choices(d=_PRESET_DIR, builtin_names=None) -> list[str]:
+    builtin_names = _BUILTIN_PRESET_NAMES if builtin_names is None else builtin_names
+    saved = _list_saved(d)
+    builtins = [n for n in builtin_names if n in saved]
+    custom = sorted(n for n in saved if n not in builtin_names)
     out = list(builtins)
     if custom:
         if out:
@@ -156,10 +157,10 @@ def lerp_curve(vals: list[float], new_len: int) -> list[float]:
     return out
 
 
-def _write_index():
-    names = _list_saved()
+def _write_index(d=_PRESET_DIR):
+    names = _list_saved(d)
     try:
-        with open(os.path.join(_PRESET_DIR, "index.json"), "w", encoding="utf-8") as f:
+        with open(os.path.join(d, "index.json"), "w", encoding="utf-8") as f:
             json.dump({"presets": names}, f)
     except OSError:
         pass
@@ -177,17 +178,17 @@ def _load_saved(name: str) -> dict | None:
     return None
 
 
-def _save_preset(name: str, blocks: list[float], named: dict) -> None:
-    _ensure_dir()
+def _save_preset(name: str, blocks: list[float], named: dict, d=_PRESET_DIR) -> None:
+    _ensure_dir(d)
     safe = _sanitize(name)
     payload = {
         "name": safe,
         "blocks": format_curve(blocks),
         "named": {k: float(v) for k, v in named.items()},
     }
-    with open(os.path.join(_PRESET_DIR, safe + ".json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(d, safe + ".json"), "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
-    _write_index()
+    _write_index(d)
 
 
 class LCKrea2BlockMergeAdvanced(ModelMergeBlocks):

@@ -325,7 +325,15 @@ class LCFaceVarietyScorer:
                     "tooltip": "Ignore detected faces narrower than this (background people, reflections).",
                 }),
                 "device": (["cpu", "auto"], {"tooltip": "cpu works on every install and takes seconds for a normal test. auto tries CUDA first and falls back to CPU."}),
-            }
+            },
+            "optional": {
+                "face_model": (["photo (ArcFace)", "anime (CCIP)"], {
+                    "default": "photo (ArcFace)",
+                    "tooltip": "photo = ArcFace on the main face, for realistic models. anime = CCIP on each image's main anime face, "
+                               "for anime and illustration models (Anima, Illustrious, Pony): photo face models miss on "
+                               "anime faces. The models download once (about 200 MB).",
+                }),
+            },
         }
 
     RETURN_TYPES = ("FLOAT", "FLOAT", "FLOAT", "STRING", "STRING", "IMAGE", "INT")
@@ -339,7 +347,9 @@ class LCFaceVarietyScorer:
         "non-commercial research license)."
     )
 
-    def score(self, images, same_threshold=0.35, min_face_px=40, device="cpu"):
+    def score(self, images, same_threshold=0.35, min_face_px=40, device="cpu", face_model="photo (ArcFace)"):
+        if face_model.startswith("anime"):
+            return self._anime(images)
         det, rec = _sessions(device)
         arr = (images.clamp(0, 1).cpu().numpy() * 255).round().astype(np.uint8)
         main, crops, crowd, missed = [], [], [], []
@@ -382,6 +392,34 @@ class LCFaceVarietyScorer:
             "Face models: InsightFace buffalo_l (SCRFD + ArcFace), github.com/deepinsight/insightface",
         ]
         return (score, same_pct, crowd_score, g, "\n".join(lines), _grid(crops), len(main))
+
+
+    @staticmethod
+    def _anime(images):
+        from .lc_ccip import THRESHOLD, same_character
+        arr = (images.clamp(0, 1).cpu().numpy() * 255).round().astype(np.uint8)
+        share, diff, used = same_character(images)
+        ok = share == share
+        g = ("Need at least 2 images" if not ok else "Same character" if share >= 0.8 else
+             "Mostly the same character" if share >= 0.5 else "Some repeats" if share > 0.25 else "Different characters")
+        lines = [
+            "LC Face Variety Scorer (anime, CCIP)",
+            f"Images: {len(arr)}   Faces used: {used}",
+            "",
+            f"Same character score: {share:.3f}   (0.0 - 1.0, share of image pairs CCIP calls the same character, lower = more variety)",
+            f"Grade: {g}",
+            f"Mean CCIP difference: {diff:.3f}   (below {THRESHOLD:.3f} = same character)",
+            "",
+            "Scale:",
+            "  0.00 - 0.25  Different characters (an anime base model sits around 0.1 - 0.25)",
+            "  0.25 - 0.50  Some repeats",
+            "  0.50 - 0.80  Mostly the same character",
+            "  0.80 - 1.00  Same character every time",
+            "",
+            "Faces: deepghs anime face detector (MIT). CCIP by deepghs (OpenRAIL), huggingface.co/deepghs/ccip_onnx.",
+        ]
+        thumbs = [rgb[:, :, :3] for rgb in arr]
+        return (share, 100.0 * share if ok else float("nan"), -1.0, g, chr(10).join(lines), _grid(thumbs), len(arr))
 
 
 NODE_CLASS_MAPPINGS = {"LCFaceVarietyScorer": LCFaceVarietyScorer}

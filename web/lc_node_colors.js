@@ -20,6 +20,15 @@ const COLORS = {
     LCLoRAExtract: { color: "#6a5220", bgcolor: "#6a5220" },
     LCModelMergeAny: { color: "#5a4a1a", bgcolor: "#5a4a1a" },
     LCScoreboard: { color: "#5a4a1a", bgcolor: "#5a4a1a" },
+    LCAnimaLoRAEditor: { color: "#6a5220", bgcolor: "#6a5220" },
+    LCAnimaLoRABlockScan: { color: "#6a5220", bgcolor: "#6a5220" },
+    LCAnimaLoRAMerge: { color: "#6a5220", bgcolor: "#6a5220" },
+    LCAnimaBlockMergeAdvanced: { color: "#5a4a1a", bgcolor: "#5a4a1a" },
+    LCModelQuantize: { color: "#6a5220", bgcolor: "#6a5220" },
+    // VAE nodes wear ComfyUI's standard red, like Load VAE
+    LCVAEMerge: { color: "#322", bgcolor: "#533" },
+    LCVAESave: { color: "#322", bgcolor: "#533" },
+    LCVAECompare: { color: "#6a5220", bgcolor: "#6a5220" },
 };
 
 app.registerExtension({

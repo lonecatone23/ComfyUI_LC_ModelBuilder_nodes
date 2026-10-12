@@ -14,5 +14,13 @@ Registered class IDs:
 * LCModelMergeAny
 * LCLoRAExtract
 * LCScoreboard
+* LCAnimaLoRAEditor
+* LCAnimaLoRABlockScan
+* LCAnimaLoRAMerge
+* LCAnimaBlockMergeAdvanced
+* LCModelQuantize
+* LCVAEMerge
+* LCVAESave
+* LCVAECompare
 
 Comfy Registry discovers nodes from NODE_CLASS_MAPPINGS at publish time.

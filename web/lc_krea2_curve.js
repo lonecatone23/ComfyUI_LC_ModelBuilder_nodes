@@ -19,6 +19,17 @@ const BUILTIN_PRESETS = [
     "resonance_blocks", "even_blend", "core_focus", "heavy_transplant_anchored",
 ];
 
+// Per node type: named sliders, preset folder and bundled presets (Krea2 above, Anima mirrors lc_anima_block_merge.py)
+const CFGS = {
+    LCKrea2BlockMergeAdvanced: { title: "LC Krea2 Block Merge Advanced", named: NAMED_KEYS, roots: PRESET_ROOTS, builtins: BUILTIN_PRESETS },
+    LCAnimaBlockMergeAdvanced: {
+        title: "LC Anima Block Merge Advanced",
+        named: ["x_embedder", "t_embedder", "t_embedding_norm", "llm_adapter", "final_layer"],
+        roots: ["/extensions/ComfyUI_LC_ModelBuilder_nodes/anima_block_presets/", "/extensions/comfyui_lc_modelbuilder_nodes/anima_block_presets/"],
+        builtins: ["50_50", "model2_early", "model2_look", "model2_late"],
+    },
+};
+
 function zoneLabel(i) {
     if (i < ZONE_LOW_END) return "Low block";
     if (i < ZONE_MID_END) return "Mid block";
@@ -92,12 +103,13 @@ app.registerExtension({
     name: "LCModelBuilder.Krea2BlockMerge",
 
     async beforeRegisterNodeDef(nodeType, nodeData) {
-        if (nodeData.name !== "LCKrea2BlockMergeAdvanced") return;
+        const cfg = CFGS[nodeData.name];
+        if (!cfg) return;
 
         const onNodeCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
             if (onNodeCreated) onNodeCreated.apply(this, arguments);
-            this.title = "LC Krea2 Block Merge Advanced";
+            this.title = cfg.title;
             this.lcDrag = -1;
             this.lcGraphH = 160;
             this.lcHover = -1;
@@ -138,8 +150,8 @@ app.registerExtension({
                     if (n && n !== "index" && n !== "Custom") extra[n] = true;
                 });
                 const all = Object.keys(extra);
-                const builtins = BUILTIN_PRESETS.filter((n) => all.includes(n));
-                const custom = all.filter((n) => !BUILTIN_PRESETS.includes(n)).sort();
+                const builtins = cfg.builtins.filter((n) => all.includes(n));
+                const custom = all.filter((n) => !cfg.builtins.includes(n)).sort();
                 const vals = [...builtins];
                 if (custom.length) {
                     if (vals.length) vals.push("────────");
@@ -162,7 +174,7 @@ app.registerExtension({
                         self.setDirtyCanvas(true, true);
                         return;
                     }
-                    for (const root of PRESET_ROOTS) {
+                    for (const root of cfg.roots) {
                         fetch(root + encodeURIComponent(v) + ".json" + "?t=" + Date.now())
                             .then((r) => (r.ok ? r.json() : null))
                             .then((body) => {
@@ -172,7 +184,7 @@ app.registerExtension({
                                     setWidget(self, "blocks_curve", formatCurve(lerpCurve(pts, NUM_BLOCKS)));
                                 }
                                 const named = body.named || {};
-                                NAMED_KEYS.forEach((k) => {
+                                cfg.named.forEach((k) => {
                                     if (typeof named[k] === "number") setWidget(self, k, named[k]);
                                 });
                                 self.setDirtyCanvas(true, true);
@@ -185,7 +197,7 @@ app.registerExtension({
             // Any manual edit of a merge parameter (named slider or the curve string
             // itself) flips preset back to Custom — loading a preset uses setWidget()
             // directly and never touches .callback, so this never fires on preset load.
-            ["blocks_curve", ...NAMED_KEYS].forEach((name) => {
+            ["blocks_curve", ...cfg.named].forEach((name) => {
                 const w = widget(self, name);
                 if (!w) return;
                 const prev = w.callback;
@@ -197,7 +209,7 @@ app.registerExtension({
             });
 
             (async () => {
-                for (const root of PRESET_ROOTS) {
+                for (const root of cfg.roots) {
                     try {
                         const res = await fetch(root + "index.json?t=" + Date.now());
                         if (!res.ok) continue;

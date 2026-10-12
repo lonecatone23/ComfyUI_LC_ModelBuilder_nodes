@@ -6,21 +6,39 @@ import { app } from "../../scripts/app.js";
 
 const N = 28;
 const ROWS = ["q", "k", "v", "o", "gate", "m.gate", "m.up", "m.down"];
-const H_BARS = 120;
+const ANIMA_ROWS = ["sa.q", "sa.k", "sa.v", "sa.o", "ca.q", "ca.k", "ca.v", "ca.o", "mlp.1", "mlp.2", "adaln"];
+const H_BARS = 240;
 const CELL_H = 9;
-const hTotal = (cfg) => H_BARS + 22 + cfg.maps * (ROWS.length * CELL_H + 14) + 18;
+const hTotal = (cfg) => H_BARS + 22 + cfg.maps * ((cfg.rows || ROWS).length * CELL_H + 14) + 18;
 
 const CFG = {
   LCKrea2LoRAEditor: {
     max: 2, rest: 1, ticks: ["2", "1", "0"], dividers: [4, 10, 16, 22], maps: 2, backdrop: true,
     low: "rgba(120,170,255,0.75)", high: "rgba(255,150,80,0.8)",
     // Mirrors _preset_curve in lc_krea2_lora_editor.py
+    legacy: {
+      "Blocks 0-3 down": "Early blocks: structure (0-3)", "Blocks 4-9 down": "Face blocks (4-9)",
+      "Blocks 10-15 down": "Mid blocks: face and body (10-15)", "Blocks 16-21 down": "Late face blocks (16-21)",
+      "Blocks 22-27 down": "Finish: color and skin (22-27)", "Tame (4-15 at 0.7)": "Tame whole image (4-15 at 0.7)",
+    },
+    preset(name) {
+      name = this.legacy[name] || name;
+      if (name === "Full") return new Array(N).fill(1);
+      const m = /\((\d+)-(\d+)(?: at ([\d.]+))?\)$/.exec(name || "");
+      if (!m) return null;
+      const lo = +m[1], hi = +m[2], v = m[3] ? +m[3] : 0.3;
+      return Array.from({ length: N }, (_, i) => (i >= lo && i <= hi ? v : 1));
+    },
+  },
+  LCAnimaLoRAEditor: {
+    max: 2, rest: 1, ticks: ["2", "1", "0"], dividers: [7, 14, 21], maps: 2, backdrop: true, rows: ANIMA_ROWS,
+    low: "rgba(120,170,255,0.75)", high: "rgba(255,150,80,0.8)",
+    // Mirrors ANIMA_GROUPS in lc_krea2_lora_editor.py
     preset(name) {
       if (name === "Full") return new Array(N).fill(1);
-      if (name === "Tame (4-15 at 0.7)") return Array.from({ length: N }, (_, i) => (i >= 4 && i <= 15 ? 0.7 : 1));
-      const m = /^Blocks (\d+)-(\d+) down$/.exec(name || "");
+      const m = /\((\d+)-(\d+)\)$|^Blocks (\d+)-(\d+)$/.exec(name || "");
       if (!m) return null;
-      const lo = +m[1], hi = +m[2];
+      const lo = +(m[1] ?? m[3]), hi = +(m[2] ?? m[4]);
       return Array.from({ length: N }, (_, i) => (i >= lo && i <= hi ? 0.3 : 1));
     },
   },
@@ -39,6 +57,8 @@ const CFG = {
     },
   },
 };
+// Anima Merge: Krea Merge's bars with Anima's rows and presets (mirrors ANIMA_PRESETS in lc_krea2_lora_merge.py)
+CFG.LCAnimaLoRAMerge = { ...CFG.LCKrea2LoRAMerge, rows: ANIMA_ROWS };
 
 const W = (node, name) => (node.widgets || []).find((w) => w.name === name);
 
@@ -61,6 +81,10 @@ function curveOf(node) {
 function setCurve(node, vals) {
   const w = W(node, "blocks");
   if (w) w.value = vals.map((x) => +x.toFixed(3)).join(", ");
+}
+
+function rowsOf(node) {
+  return node._lcMap?.rows || node._lcCfg.rows || ROWS;
 }
 
 function heat(t) {
@@ -155,7 +179,7 @@ function draw(node) {
     ctx.font = "9px sans-serif";
     ctx.fillText(label, 2, y + 7);
     y += 10;
-    ROWS.forEach((name, r) => {
+    rowsOf(node).forEach((name, r) => {
       ctx.textAlign = "right";
       ctx.fillStyle = "rgba(255,255,255,0.4)";
       ctx.font = "8px sans-serif";
@@ -166,7 +190,7 @@ function draw(node) {
         ctx.fillRect(L + b * bw + 0.5, y + r * CELL_H + 0.5, bw - 1, CELL_H - 1);
       }
     });
-    y += ROWS.length * CELL_H + 4;
+    y += rowsOf(node).length * CELL_H + 4;
   };
   const mx = maps ? Math.max(1e-9, ...maps.flatMap(([, m]) => m.flat())) : 1;
   const labels = cfg.maps === 3 ? ["LoRA A", "LoRA B", "merged"] : ["before", "after (same scale)"];
@@ -174,7 +198,7 @@ function draw(node) {
   ctx.textAlign = "left";
   ctx.fillStyle = "rgba(255,255,255,0.65)";
   ctx.font = "10px sans-serif";
-  const wiredNote = wired(node) ? (map?.wired ? "bars from blocks_in · " : "blocks_in wired: run to see its curve · ") : "";
+  const wiredNote = wired(node) ? (map?.wired ? "bars from blocks_in (drag to edit: unplugs it) · " : "blocks_in wired (drag to edit: unplugs it) · ") : "";
   ctx.fillText(wiredNote + (map ? map.note : "Run once to see the LoRA's layer strengths."), 2, H_TOTAL - 5, cw - 4);
 }
 
@@ -223,10 +247,20 @@ function setup(node, cfg) {
   };
   canvas.addEventListener("pointerdown", (ev) => {
     const hit = blockAt(node, ev);
-    if (!hit || wired(node)) return; // a wired curve comes from blocks_in, not the bars
+    if (!hit) return;
+    if (wired(node)) {
+      // editing by hand takes over from blocks_in: keep its curve as the starting point, then unplug it
+      const start = curveOf(node).slice();
+      node.disconnectInput(node.inputs.findIndex((x) => x.name === "blocks_in"));
+      setCurve(node, start);
+    }
     ev.stopPropagation();
     ev.preventDefault();
-    canvas.setPointerCapture(ev.pointerId);
+    try {
+      canvas.setPointerCapture(ev.pointerId);
+    } catch {
+      // no capture: the drag still works while the pointer stays on the graph
+    }
     node._lcLE.drag = hit.b;
     put(hit, ev);
   });
@@ -258,7 +292,7 @@ function setup(node, cfg) {
   });
   canvas.addEventListener("dblclick", (ev) => {
     const hit = blockAt(node, ev);
-    if (!hit) return;
+    if (!hit || wired(node)) return;
     ev.stopPropagation();
     put({ b: hit.b, v: cfg.rest }, ev);
   });
@@ -297,6 +331,8 @@ app.registerExtension({
     const onConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function () {
       const r = onConfigure?.apply(this, arguments);
+      const p = W(this, "preset");
+      if (p && cfg.legacy?.[p.value]) p.value = cfg.legacy[p.value];
       setTimeout(() => draw(this), 50);
       return r;
     };
