@@ -1,0 +1,859 @@
+{
+  "id": "d43288ae-a0b3-43f7-9350-3a04a804f950",
+  "revision": 0,
+  "last_node_id": 11,
+  "last_link_id": 7,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LCFingerprintLibrary",
+      "pos": [
+        20,
+        70
+      ],
+      "size": [
+        440,
+        300
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "folders",
+          "name": "folders",
+          "type": "STRING",
+          "widget": {
+            "name": "folders"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "recursive",
+          "name": "recursive",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "recursive"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "include",
+          "name": "include",
+          "type": "COMBO",
+          "widget": {
+            "name": "include"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "skip_known",
+          "name": "skip_known",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "skip_known"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "precision",
+          "name": "precision",
+          "type": "COMBO",
+          "widget": {
+            "name": "precision"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "report",
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            1
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "ComfyUI_LC_ModelBuilder_nodes",
+        "ver": "37eef01b2e42b9feef92c30b5b70d08578d59afa",
+        "Node name for S&R": "LCFingerprintLibrary"
+      },
+      "widgets_values": [
+        "diffusion_models\nloras",
+        true,
+        "models and LoRAs",
+        true,
+        "bf16 / fp16 / fp8 only"
+      ],
+      "widgets_values_named": {
+        "folders": "diffusion_models\nloras",
+        "recursive": true,
+        "include": "models and LoRAs",
+        "skip_known": true,
+        "precision": "bf16 / fp16 / fp8 only"
+      }
+    },
+    {
+      "id": 2,
+      "type": "LCShowText",
+      "pos": [
+        480,
+        70
+      ],
+      "size": [
+        520,
+        460
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "Library report 📚",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "ComfyUI_LC123_nodes",
+        "ver": "04041dbeb32cb1f3b8c269882da1d419d1242c61",
+        "Node name for S&R": "LCShowText"
+      },
+      "color": "#28281E",
+      "bgcolor": "#28281E"
+    },
+    {
+      "id": 3,
+      "type": "LCFingerprintIdentify",
+      "pos": [
+        20,
+        690
+      ],
+      "size": [
+        440,
+        220
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "files",
+          "name": "files",
+          "type": "STRING",
+          "widget": {
+            "name": "files"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "recursive",
+          "name": "recursive",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "recursive"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "add_to_library",
+          "name": "add_to_library",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "add_to_library"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "report",
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            2
+          ]
+        },
+        {
+          "name": "heatmap",
+          "type": "IMAGE",
+          "links": [
+            7
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "ComfyUI_LC_ModelBuilder_nodes",
+        "ver": "37eef01b2e42b9feef92c30b5b70d08578d59afa",
+        "Node name for S&R": "LCFingerprintIdentify"
+      },
+      "widgets_values": [
+        "models/diffusion_models/my download.safetensors",
+        false,
+        false
+      ],
+      "widgets_values_named": {
+        "files": "models/diffusion_models/my download.safetensors",
+        "recursive": false,
+        "add_to_library": false
+      }
+    },
+    {
+      "id": 4,
+      "type": "LCShowText",
+      "pos": [
+        480,
+        690
+      ],
+      "size": [
+        520,
+        460
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "What it is 🔎",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "ComfyUI_LC123_nodes",
+        "ver": "04041dbeb32cb1f3b8c269882da1d419d1242c61",
+        "Node name for S&R": "LCShowText"
+      },
+      "color": "#28281E",
+      "bgcolor": "#28281E"
+    },
+    {
+      "id": 5,
+      "type": "UNETLoader",
+      "pos": [
+        20,
+        1310
+      ],
+      "size": [
+        440,
+        82
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "unet_name",
+          "name": "unet_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "unet_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "weight_dtype",
+          "name": "weight_dtype",
+          "type": "COMBO",
+          "widget": {
+            "name": "weight_dtype"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "title": "Model to check",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.37.0",
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "Krealism_V3.1_bf16.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "Krealism_V3.1_bf16.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    {
+      "id": 6,
+      "type": "UNETLoader",
+      "pos": [
+        20,
+        1430
+      ],
+      "size": [
+        440,
+        82
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "unet_name",
+          "name": "unet_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "unet_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "weight_dtype",
+          "name": "weight_dtype",
+          "type": "COMBO",
+          "widget": {
+            "name": "weight_dtype"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "MODEL",
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "title": "Reference (what you think it came from)",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.37.0",
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "krea2_Turbo_Bf16.safetensors",
+        "default"
+      ],
+      "widgets_values_named": {
+        "unet_name": "krea2_Turbo_Bf16.safetensors",
+        "weight_dtype": "default"
+      }
+    },
+    {
+      "id": 7,
+      "type": "LCModelFingerprint",
+      "pos": [
+        20,
+        1550
+      ],
+      "size": [
+        440,
+        130
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "MODEL",
+          "link": 3
+        },
+        {
+          "localized_name": "reference",
+          "name": "reference",
+          "shape": 7,
+          "type": "MODEL",
+          "link": 4
+        },
+        {
+          "localized_name": "lora_name",
+          "name": "lora_name",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "report",
+          "name": "report",
+          "type": "STRING",
+          "links": [
+            5
+          ]
+        },
+        {
+          "localized_name": "chart",
+          "name": "chart",
+          "type": "IMAGE",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "ComfyUI_LC_ModelBuilder_nodes",
+        "ver": "37eef01b2e42b9feef92c30b5b70d08578d59afa",
+        "Node name for S&R": "LCModelFingerprint"
+      },
+      "widgets_values": [
+        "none"
+      ],
+      "widgets_values_named": {
+        "lora_name": "none"
+      }
+    },
+    {
+      "id": 8,
+      "type": "LCShowText",
+      "pos": [
+        480,
+        1310
+      ],
+      "size": [
+        520,
+        420
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "Comparison 🔍",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "ComfyUI_LC123_nodes",
+        "ver": "04041dbeb32cb1f3b8c269882da1d419d1242c61",
+        "Node name for S&R": "LCShowText"
+      },
+      "color": "#28281E",
+      "bgcolor": "#28281E"
+    },
+    {
+      "id": 9,
+      "type": "LCPreviewImage",
+      "pos": [
+        1020,
+        1310
+      ],
+      "size": [
+        780,
+        600
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 6
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "title": "Per block chart",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "ComfyUI_LC123_nodes",
+        "ver": "04041dbeb32cb1f3b8c269882da1d419d1242c61",
+        "Node name for S&R": "LCPreviewImage"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "color": "#324B4B",
+      "bgcolor": "#324B4B",
+      "widgets_values_named": {
+        "lc_preview": ""
+      }
+    },
+    {
+      "id": 10,
+      "type": "LCNote",
+      "pos": [
+        -760,
+        0
+      ],
+      "size": [
+        740,
+        1940
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Notes 📝",
+      "properties": {
+        "lc_note": {
+          "source": "en",
+          "texts": {
+            "en": {
+              "text": "## LC Model Fingerprint 🔍\n\nWhat is this model made of? These nodes read the weights themselves, so they work when the metadata says nothing (or lies).\n\n### 🛑🚫✋ Build the library first\n- **Identify** can only name models and LoRAs it has seen. Point the library at your folders once, then run it again whenever you add new files (it only adds what is new).\n\n---\n\n**LC Fingerprint Library 📚**\n- One folder (or file) per line. **diffusion_models**, **checkpoints** or **loras** on a line searches every place ComfyUI keeps them. Every .safetensors inside is checked: models and LoRAs go in, VAEs, text encoders and upscalers are skipped.\n- Each file gets a small fingerprint (about 1 MB) and its family: Krea 2, Z-Image, Anima, Flux, Klein, Chroma, Qwen, HiDream, Wan, LTX, MiniMax H3, SDXL, SD 1.5.\n- **precision:** leave it on **bf16 / fp16 / fp8 only**. int8, nvfp4 and the other lower quants are the same model rounded, they add nothing.\n- 💡 Once a file is in the library, the original can go. The fingerprint is enough to recognize it later.\n- About 20 s per model and per LoRA. A big folder is a coffee break. ☕\n- Cancel works between files.\n```\nComfyUI/\n└── models/\n    └── fingerprints/\n        ├── index.json\n        ├── keymaps/\n        └── Krea 2/\n            ├── model/\n            └── lora/\n```\n\n**LC Fingerprint Identify 🔎**\n- Point it at a file or a whole folder of downloads.\n- **A model:** its recipe, block by block. Which library models were merged and at what ratio, which blocks came from which model, and which LoRAs went in at what strength. Something like *Very likely (95%): Model A 60% + Model B 40% + LoRA C at ~0.40*.\n- **sure of:** how sure it is of each ingredient. Low means another library model could stand in for it.\n- **Not in library:** the part your library can't account for. It is either the maker's own training or a model or LoRA you don't have. The fingerprint can't tell those apart.\n- **heatmap:** one row per block. Brighter = a bigger share from that model.\n- 💡 It can only name what is in the library. The more models and LoRAs you add, the better the answers.\n- **A LoRA:** whether the library already has it (renamed copies show up).\n- **add_to_library:** stores each one after, so it is known next time.\n- ⚠️ 4-bit files (nvfp4, GGUF Q4) blur the comparison. It still names the ingredients, but close relatives score almost the same.\n\n**LC Model Fingerprint 🔍**\n- One model against one reference, layer by layer. Load both with your usual loaders (any precision, GGUF too).\n- **Verdict:** the same model (at another precision), built on the reference, a block merge, or not related.\n- **chart:** similarity per block. Green = the reference's own weights, yellow = close, red = changed. A block merge shows up right away.\n- **lora_name:** checks if that LoRA was merged into the model, and at about what strength. Needs the reference as the base.\n\n---\n"
+            }
+          },
+          "titles": {
+            "en": "Notes 📝"
+          }
+        }
+      },
+      "widgets_values": [
+        "English ✏️",
+        "## LC Model Fingerprint 🔍\n\nWhat is this model made of? These nodes read the weights themselves, so they work when the metadata says nothing (or lies).\n\n### 🛑🚫✋ Build the library first\n- **Identify** can only name models and LoRAs it has seen. Point the library at your folders once, then run it again whenever you add new files (it only adds what is new).\n\n---\n\n**LC Fingerprint Library 📚**\n- One folder (or file) per line. **diffusion_models**, **checkpoints** or **loras** on a line searches every place ComfyUI keeps them. Every .safetensors inside is checked: models and LoRAs go in, VAEs, text encoders and upscalers are skipped.\n- Each file gets a small fingerprint (about 1 MB) and its family: Krea 2, Z-Image, Anima, Flux, Klein, Chroma, Qwen, HiDream, Wan, LTX, MiniMax H3, SDXL, SD 1.5.\n- **precision:** leave it on **bf16 / fp16 / fp8 only**. int8, nvfp4 and the other lower quants are the same model rounded, they add nothing.\n- 💡 Once a file is in the library, the original can go. The fingerprint is enough to recognize it later.\n- About 20 s per model and per LoRA. A big folder is a coffee break. ☕\n- Cancel works between files.\n```\nComfyUI/\n└── models/\n    └── fingerprints/\n        ├── index.json\n        ├── keymaps/\n        └── Krea 2/\n            ├── model/\n            └── lora/\n```\n\n**LC Fingerprint Identify 🔎**\n- Point it at a file or a whole folder of downloads.\n- **A model:** its recipe, block by block. Which library models were merged and at what ratio, which blocks came from which model, and which LoRAs went in at what strength. Something like *Very likely (95%): Model A 60% + Model B 40% + LoRA C at ~0.40*.\n- **sure of:** how sure it is of each ingredient. Low means another library model could stand in for it.\n- **Not in library:** the part your library can't account for. It is either the maker's own training or a model or LoRA you don't have. The fingerprint can't tell those apart.\n- **heatmap:** one row per block. Brighter = a bigger share from that model.\n- 💡 It can only name what is in the library. The more models and LoRAs you add, the better the answers.\n- **A LoRA:** whether the library already has it (renamed copies show up).\n- **add_to_library:** stores each one after, so it is known next time.\n- ⚠️ 4-bit files (nvfp4, GGUF Q4) blur the comparison. It still names the ingredients, but close relatives score almost the same.\n\n**LC Model Fingerprint 🔍**\n- One model against one reference, layer by layer. Load both with your usual loaders (any precision, GGUF too).\n- **Verdict:** the same model (at another precision), built on the reference, a block merge, or not related.\n- **chart:** similarity per block. Green = the reference's own weights, yellow = close, red = changed. A block merge shows up right away.\n- **lora_name:** checks if that LoRA was merged into the model, and at about what strength. Needs the reference as the base.\n\n---\n"
+      ],
+      "color": "#2E3A46",
+      "bgcolor": "#2E3A46",
+      "widgets_values_named": {
+        "language": "English ✏️",
+        "text": "## LC Model Fingerprint 🔍\n\nWhat is this model made of? These nodes read the weights themselves, so they work when the metadata says nothing (or lies).\n\n### 🛑🚫✋ Build the library first\n- **Identify** can only name models and LoRAs it has seen. Point the library at your folders once, then run it again whenever you add new files (it only adds what is new).\n\n---\n\n**LC Fingerprint Library 📚**\n- One folder (or file) per line. **diffusion_models**, **checkpoints** or **loras** on a line searches every place ComfyUI keeps them. Every .safetensors inside is checked: models and LoRAs go in, VAEs, text encoders and upscalers are skipped.\n- Each file gets a small fingerprint (about 1 MB) and its family: Krea 2, Z-Image, Anima, Flux, Klein, Chroma, Qwen, HiDream, Wan, LTX, MiniMax H3, SDXL, SD 1.5.\n- **precision:** leave it on **bf16 / fp16 / fp8 only**. int8, nvfp4 and the other lower quants are the same model rounded, they add nothing.\n- 💡 Once a file is in the library, the original can go. The fingerprint is enough to recognize it later.\n- About 20 s per model and per LoRA. A big folder is a coffee break. ☕\n- Cancel works between files.\n```\nComfyUI/\n└── models/\n    └── fingerprints/\n        ├── index.json\n        ├── keymaps/\n        └── Krea 2/\n            ├── model/\n            └── lora/\n```\n\n**LC Fingerprint Identify 🔎**\n- Point it at a file or a whole folder of downloads.\n- **A model:** its recipe, block by block. Which library models were merged and at what ratio, which blocks came from which model, and which LoRAs went in at what strength. Something like *Very likely (95%): Model A 60% + Model B 40% + LoRA C at ~0.40*.\n- **sure of:** how sure it is of each ingredient. Low means another library model could stand in for it.\n- **Not in library:** the part your library can't account for. It is either the maker's own training or a model or LoRA you don't have. The fingerprint can't tell those apart.\n- **heatmap:** one row per block. Brighter = a bigger share from that model.\n- 💡 It can only name what is in the library. The more models and LoRAs you add, the better the answers.\n- **A LoRA:** whether the library already has it (renamed copies show up).\n- **add_to_library:** stores each one after, so it is known next time.\n- ⚠️ 4-bit files (nvfp4, GGUF Q4) blur the comparison. It still names the ingredients, but close relatives score almost the same.\n\n**LC Model Fingerprint 🔍**\n- One model against one reference, layer by layer. Load both with your usual loaders (any precision, GGUF too).\n- **Verdict:** the same model (at another precision), built on the reference, a block merge, or not related.\n- **chart:** similarity per block. Green = the reference's own weights, yellow = close, red = changed. A block merge shows up right away.\n- **lora_name:** checks if that LoRA was merged into the model, and at about what strength. Needs the reference as the base.\n\n---\n"
+      }
+    },
+    {
+      "id": 11,
+      "type": "LCPreviewImage",
+      "pos": [
+        480,
+        1180
+      ],
+      "size": [
+        780,
+        600
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "title": "Per block chart",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "ComfyUI_LC123_nodes",
+        "ver": "04041dbeb32cb1f3b8c269882da1d419d1242c61",
+        "Node name for S&R": "LCPreviewImage"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "color": "#324B4B",
+      "bgcolor": "#324B4B",
+      "widgets_values_named": {
+        "lc_preview": ""
+      }
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "STRING"
+    ],
+    [
+      2,
+      3,
+      0,
+      4,
+      0,
+      "STRING"
+    ],
+    [
+      3,
+      5,
+      0,
+      7,
+      0,
+      "MODEL"
+    ],
+    [
+      4,
+      6,
+      0,
+      7,
+      1,
+      "MODEL"
+    ],
+    [
+      5,
+      7,
+      0,
+      8,
+      0,
+      "STRING"
+    ],
+    [
+      6,
+      7,
+      1,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      7,
+      3,
+      1,
+      11,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "📚 Build the library",
+      "bounding": [
+        0,
+        0,
+        1020,
+        560
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "🔎 Identify",
+      "bounding": [
+        0,
+        620,
+        1020,
+        1180
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "🔍 Compare two models",
+      "bounding": [
+        0,
+        1240,
+        1820,
+        700
+      ],
+      "color": "#3f789e",
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "ds": {
+      "scale": 0.9532663593750049,
+      "offset": [
+        4771.036945174173,
+        2971.8924650007298
+      ]
+    },
+    "vision_assistant": {
+      "snapshots": [],
+      "tour": {
+        "title": "ComfyUI Workflow Tour: LC Model Fingerprint",
+        "source": "saved",
+        "saved": 1792025030350,
+        "locked": true,
+        "steps": [
+          {
+            "title": "Notes 📝",
+            "groups": [],
+            "nodes": [
+              10
+            ],
+            "text": "Start here: what each node does and where the library lives.",
+            "settings": []
+          },
+          {
+            "title": "📚 Build the library",
+            "groups": [
+              {
+                "title": "📚 Build the library",
+                "index": 0
+              }
+            ],
+            "nodes": [],
+            "text": "Point it at your model and LoRA folders. Every model and LoRA gets a small fingerprint and its family.\n\n💡 Run it again after downloading new files. It only adds what is new.",
+            "settings": [
+              {
+                "node": 1,
+                "widget": "folders",
+                "why": "One folder or file per line."
+              },
+              {
+                "node": 1,
+                "widget": "precision",
+                "why": "bf16 / fp16 / fp8 only. Lower quants are the same model rounded."
+              },
+              {
+                "node": 1,
+                "widget": "skip_known",
+                "why": "Leave it on so a rerun only adds new files."
+              }
+            ]
+          },
+          {
+            "title": "🔎 Identify",
+            "groups": [
+              {
+                "title": "🔎 Identify",
+                "index": 1
+              }
+            ],
+            "nodes": [],
+            "text": "What is this file made of? Its recipe from the library, block by block: which models were merged, at what ratio, which LoRAs went in, and how sure it is. The heatmap shows which block came from where.",
+            "settings": [
+              {
+                "node": 3,
+                "widget": "files",
+                "why": "A file or a whole folder of downloads."
+              },
+              {
+                "node": 3,
+                "widget": "add_to_library",
+                "why": "Stores each one after, so it is known next time."
+              }
+            ]
+          },
+          {
+            "title": "🔍 Compare two models",
+            "groups": [
+              {
+                "title": "🔍 Compare two models",
+                "index": 2
+              }
+            ],
+            "nodes": [],
+            "text": "One model against one reference, layer by layer. The chart shows which blocks are the reference's own weights.",
+            "settings": [
+              {
+                "node": 5,
+                "widget": "unet_name",
+                "why": "The model you are checking."
+              },
+              {
+                "node": 6,
+                "widget": "unet_name",
+                "why": "The model you think it came from."
+              },
+              {
+                "node": 7,
+                "widget": "lora_name",
+                "why": "Was this LoRA merged in? Needs the reference as the base."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "version": 0.4
+}

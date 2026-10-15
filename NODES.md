@@ -23,5 +23,8 @@ Registered class IDs:
 * LCVAESave
 * LCStripMetadata
 * LCVAECompare
+* LCModelFingerprint
+* LCFingerprintLibrary
+* LCFingerprintIdentify
 
 Comfy Registry discovers nodes from NODE_CLASS_MAPPINGS at publish time.

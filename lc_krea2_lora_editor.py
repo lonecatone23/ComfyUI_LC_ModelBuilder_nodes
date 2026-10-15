@@ -102,7 +102,7 @@ def _plain(adapter) -> bool:
 
 
 def _lora_scale(adapter) -> float:
-    up, down, alpha = adapter.weights[0], adapter.weights[1], adapter.weights[2]
+    down, alpha = adapter.weights[1], adapter.weights[2]
     return (alpha / down.shape[0]) if alpha is not None else 1.0
 
 
