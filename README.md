@@ -217,6 +217,7 @@ Pulls a finetune out into a LoRA: **finetuned** minus **base**, compressed per l
 - Saved under `models/loras` (a number is added instead of overwriting), same key layout as ComfyUI's own LoRA saver, so any loader reads it.
 - **enabled** / **embed_workflow**: same switches as the save nodes. Off skips the extraction entirely. 💡 Turn embed_workflow off before sharing the LoRA if you don't want your graph attached.
 - ⚠️ Extract from **bf16** versions of both models. A quantized model adds its rounding to every layer: the file comes out bigger and holds noise. The report warns you.
+- **applied_loras**: on = LoRAs and other patches already on the **finetuned** wire are part of what gets extracted. Load Turbo, stack your LoRAs at their strengths, and get them back as one LoRA. In our test, Turbo + 2 LoRAs captured at rank 128 came out very close to the real stack.
 
 ### LC Scoreboard 🏆
 

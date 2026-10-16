@@ -44,11 +44,22 @@ def _parse_blocks(text):
     return out
 
 
-def _full(model, key, device):
+def _full(model, key, device, live=False):
     t = _param(model, key)
     if t is None:
         return None
-    return (_dequant(t, device) if _is_quant(t) else t).to(device, torch.float32)
+    w = (_dequant(t, device) if _is_quant(t) else t).to(device, torch.float32)
+    if live:
+        # the weight as it really runs: LoRAs, merges and other patches on the MODEL wire, then weight wrappers
+        # (e.g. LC Krea2 Block Calibration), applied with ComfyUI's own patch maths
+        import comfy.lora
+
+        patches = getattr(model, "patches", {}).get(key)
+        if patches:
+            w = comfy.lora.calculate_weight(patches, w.clone(), key, intermediate_dtype=torch.float32)
+        for f in getattr(model, "weight_wrapper_patches", {}).get(key, []):
+            w = f(w)
+    return w
 
 
 class LCLoRAExtract:
@@ -78,7 +89,14 @@ class LCLoRAExtract:
                 "enabled": ENABLED_INPUT,
                 "embed_workflow": EMBED_WORKFLOW_INPUT,
             },
-            "optional": {"metadata": METADATA_INPUT},
+            "optional": {
+                "metadata": METADATA_INPUT,
+                "applied_loras": ("BOOLEAN", {"default": False, "label_on": "included", "label_off": "file weights only",
+                                  "tooltip": "included = read each layer as it really runs, with the LoRAs, merges and patches "
+                                             "on the MODEL wire applied (LC LoRA Loader, LoRA Editor, Block Calibration...). "
+                                             "Extract 'Krealism + 3 LoRAs' as one LoRA. file weights only = the model files' own "
+                                             "weights (the old behaviour)."}),
+            },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
 
@@ -91,7 +109,7 @@ class LCLoRAExtract:
                    "Turbo). Any precision on either side. Unchanged layers are left out of the file.")
 
     def extract(self, finetuned, base, parts, blocks, rank, keep, min_change, filename, save_dtype,
-                enabled=True, embed_workflow=True, metadata="keep all", prompt=None, extra_pnginfo=None):
+                enabled=True, embed_workflow=True, metadata="keep all", applied_loras=False, prompt=None, extra_pnginfo=None):
         if not enabled:
             msg = "Extract is off (enabled = false): nothing extracted or written."
             return {"ui": {"text": [msg]}, "result": (msg,)}
@@ -108,8 +126,8 @@ class LCLoRAExtract:
                 continue
             if wanted is not None and (not m or int(m.group(1)) not in wanted):
                 continue
-            w_base = _full(base, key, device)
-            w_ft = _full(finetuned, key, device)
+            w_base = _full(base, key, device, live=applied_loras)
+            w_ft = _full(finetuned, key, device, live=applied_loras)
             if w_base is None or w_ft is None or w_base.shape != w_ft.shape:
                 continue
             d = w_ft - w_base
@@ -142,7 +160,8 @@ class LCLoRAExtract:
         while os.path.exists(path):
             path, n = f"{stem}_{n:05d}.safetensors", n + 1
         meta = {"lc_lora_extract": json.dumps({"parts": parts, "blocks": blocks if wanted is not None else "",
-                                                "rank": rank, "keep": keep, "min_change": min_change})}
+                                                "rank": rank, "keep": keep, "min_change": min_change,
+                                                "applied_loras": bool(applied_loras)})}
         if embed_workflow:
             meta.update(workflow_metadata(prompt, extra_pnginfo))
         meta = trim_metadata(meta, metadata)
@@ -152,7 +171,8 @@ class LCLoRAExtract:
         avg = sum(retained) / len(retained) if retained else 1.0
         low = sum(1 for x in retained if x < keep - 0.005)
         lines = [f"saved {os.path.relpath(path, root)} ({size:.2f} GB)",
-                 f"parts: {parts}" + (f" ({blocks})" if wanted is not None else ""),
+                 f"parts: {parts}" + (f" ({blocks})" if wanted is not None else "")
+                 + ("; LoRAs and patches on the wire included" if applied_loras else ""),
                  f"{kept} layers changed and saved, {skipped_same} unchanged left out",
                  f"kept {avg:.0%} of the change on average" + (f"; {low} layers hit the rank {rank} cap" if low else "")]
         if _quantized(finetuned, keys) or _quantized(base, keys):
