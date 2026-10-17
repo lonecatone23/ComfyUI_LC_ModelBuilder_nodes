@@ -51,7 +51,7 @@ def _full(model, key, device, live=False):
     w = (_dequant(t, device) if _is_quant(t) else t).to(device, torch.float32)
     if live:
         # the weight as it really runs: LoRAs, merges and other patches on the MODEL wire, then weight wrappers
-        # (e.g. LC Krea2 Block Calibration), applied with ComfyUI's own patch maths
+        # (anything that scales a weight), applied with ComfyUI's own patch maths
         import comfy.lora
 
         patches = getattr(model, "patches", {}).get(key)
@@ -93,7 +93,7 @@ class LCLoRAExtract:
                 "metadata": METADATA_INPUT,
                 "applied_loras": ("BOOLEAN", {"default": False, "label_on": "included", "label_off": "file weights only",
                                   "tooltip": "included = read each layer as it really runs, with the LoRAs, merges and patches "
-                                             "on the MODEL wire applied (LC LoRA Loader, LoRA Editor, Block Calibration...). "
+                                             "on the MODEL wire applied (LC LoRA Loader, LoRA Editor...). "
                                              "Extract 'Krealism + 3 LoRAs' as one LoRA. file weights only = the model files' own "
                                              "weights (the old behaviour)."}),
             },
