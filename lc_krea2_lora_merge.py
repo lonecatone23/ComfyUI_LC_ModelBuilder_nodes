@@ -106,8 +106,12 @@ def _ties(deltas: list[torch.Tensor], density: float) -> torch.Tensor:
 def _refit(delta: torch.Tensor, rank: int):
     """Full delta -> (up, down) of the given rank, keeping the strongest directions."""
     rank = max(1, min(rank, min(delta.shape) - 1))
-    torch.manual_seed(0)  # svd_lowrank is randomised: same input, same result
-    u, s, v = torch.svd_lowrank(delta, q=min(rank + 8, min(delta.shape)), niter=2)
+    # svd_lowrank is randomised: same input, same result. fork_rng puts the global RNG back afterwards, so the
+    # fixed seed does not leak into other nodes
+    cuda = [delta.device.index or 0] if delta.device.type == "cuda" else []
+    with torch.random.fork_rng(devices=cuda):
+        torch.manual_seed(0)
+        u, s, v = torch.svd_lowrank(delta, q=min(rank + 8, min(delta.shape)), niter=2)
     return u[:, :rank] * s[:rank], v[:, :rank].T
 
 

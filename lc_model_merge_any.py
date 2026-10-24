@@ -65,7 +65,12 @@ def _dequant(t, device) -> torch.Tensor:
 
 def _param(model, key):
     """The live weight of one layer. model_state_dict() flattens quantized weights into raw numbers plus separate
-    scale keys; the layer itself still holds a QuantizedTensor / GGMLTensor that decodes correctly."""
+    scale keys; the layer itself still holds a QuantizedTensor / GGMLTensor that decodes correctly.
+    A model a sampler has loaded holds its patches (LoRAs, merges) baked into the layer, with the original kept in
+    backup: read that one, like core's get_key_patches, so patches are not counted twice."""
+    bk = getattr(model, "backup", {}).get(key)
+    if bk is not None:
+        return bk.weight
     try:
         return comfy.utils.get_attr(model.model, key)
     except AttributeError:

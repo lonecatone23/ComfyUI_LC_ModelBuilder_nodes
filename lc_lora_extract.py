@@ -113,6 +113,13 @@ class LCLoRAExtract:
         if not enabled:
             msg = "Extract is off (enabled = false): nothing extracted or written."
             return {"ui": {"text": [msg]}, "result": (msg,)}
+        # where it goes, checked before the work: inside models/loras, no double .safetensors
+        root = folder_paths.get_folder_paths("loras")[0]
+        rel = filename.replace("\\", "/").strip().strip("/")
+        rel = rel[:-12] if rel.lower().endswith(".safetensors") else rel
+        stem = os.path.abspath(os.path.join(root, rel or "extracted_lora"))
+        if not stem.startswith(os.path.join(os.path.abspath(root), "")):  # trailing separator: "loras2" is outside
+            raise ValueError("LC LoRA Extract: filename must stay inside models/loras")
         device = mm.get_torch_device()
         dtype = torch.bfloat16 if save_dtype == "bf16" else torch.float16
         wanted = _parse_blocks(blocks) if parts == "custom blocks" else None
@@ -153,8 +160,6 @@ class LCLoRAExtract:
         if not out:
             raise ValueError("LC LoRA Extract: no layer differs between the two models (or none in the chosen parts).")
 
-        root = folder_paths.get_folder_paths("loras")[0]
-        stem = os.path.join(root, filename.replace("\\", "/").strip("/"))
         os.makedirs(os.path.dirname(stem), exist_ok=True)
         path, n = stem + ".safetensors", 1
         while os.path.exists(path):

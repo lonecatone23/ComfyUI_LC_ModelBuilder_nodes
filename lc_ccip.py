@@ -52,6 +52,23 @@ def _find():
     return None
 
 
+def _fetch(url, tmp):
+    """Download to a .part file; a network error removes the partial file instead of leaving it behind."""
+    try:
+        with urllib.request.urlopen(url, timeout=60) as r, open(tmp, "wb") as f:
+            while True:
+                chunk = r.read(1 << 20)
+                if not chunk:
+                    break
+                f.write(chunk)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def _download():
     os.makedirs(_DIR, exist_ok=True)
     for name, sha in FILES.items():
@@ -60,12 +77,7 @@ def _download():
             continue
         tmp = dst + ".part"
         print(f"[LC Modelbuilder] downloading CCIP {name} ...")
-        with urllib.request.urlopen(f"{REPO}/{MODEL}/{name}", timeout=60) as r, open(tmp, "wb") as f:
-            while True:
-                chunk = r.read(1 << 20)
-                if not chunk:
-                    break
-                f.write(chunk)
+        _fetch(f"{REPO}/{MODEL}/{name}", tmp)
         if _sha256(tmp) != sha:
             os.remove(tmp)
             raise RuntimeError(f"CCIP {name}: checksum mismatch after download. Try again, or place the file in {_DIR}.")
@@ -100,12 +112,7 @@ def _detector():
             os.makedirs(os.path.dirname(_DET_PATH), exist_ok=True)
             tmp = _DET_PATH + ".part"
             print("[LC Modelbuilder] downloading the anime face detector ...")
-            with urllib.request.urlopen(DET_URL, timeout=60) as r, open(tmp, "wb") as f:
-                while True:
-                    chunk = r.read(1 << 20)
-                    if not chunk:
-                        break
-                    f.write(chunk)
+            _fetch(DET_URL, tmp)
             if _sha256(tmp) != DET_SHA:
                 os.remove(tmp)
                 raise RuntimeError("anime face detector: checksum mismatch after download. Try again.")

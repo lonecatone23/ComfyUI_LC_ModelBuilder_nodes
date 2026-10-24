@@ -28,11 +28,23 @@ const CFGS = {
         roots: ["/extensions/ComfyUI_LC_ModelBuilder_nodes/anima_block_presets/", "/extensions/comfyui_lc_modelbuilder_nodes/anima_block_presets/"],
         builtins: ["50_50", "model2_early", "model2_look", "model2_late"],
     },
+    LCMOSSBlockMergeAdvanced: {
+        title: "LC MOSS Block Merge Advanced",
+        blocks: 42,
+        named: ["image_in", "text_in", "timestep", "modulation", "head_modulation", "final_norm", "final_layer"],
+        roots: ["/extensions/ComfyUI_LC_ModelBuilder_nodes/moss_block_presets/", "/extensions/comfyui_lc_modelbuilder_nodes/moss_block_presets/"],
+        builtins: ["50_50", "model2_early", "model2_look", "model2_late"],
+    },
 };
 
-function zoneLabel(i) {
-    if (i < ZONE_LOW_END) return "Low block";
-    if (i < ZONE_MID_END) return "Mid block";
+// Blocks on the curve for this node (Krea 2 and Anima 28, MOSS Image 42)
+function numBlocks(node) {
+    return CFGS[node?.comfyClass || node?.type]?.blocks || NUM_BLOCKS;
+}
+
+function zoneLabel(i, n = NUM_BLOCKS) {
+    if (i < Math.floor(n / 3)) return "Low block";
+    if (i < Math.floor((n * 2) / 3)) return "Mid block";
     return "High block";
 }
 
@@ -92,9 +104,10 @@ function markCustom(node) {
 }
 
 function blockVals(node) {
+    const nb = numBlocks(node);
     let vals = parseCurve(widgetVal(node, "blocks_curve", ""));
-    if (vals.length !== NUM_BLOCKS) {
-        vals = vals.length >= 2 ? lerpCurve(vals, NUM_BLOCKS) : new Array(NUM_BLOCKS).fill(0.5);
+    if (vals.length !== nb) {
+        vals = vals.length >= 2 ? lerpCurve(vals, nb) : new Array(nb).fill(0.5);
     }
     return vals;
 }
@@ -181,7 +194,7 @@ app.registerExtension({
                                 if (!body) return;
                                 const pts = parseCurve(body.blocks);
                                 if (pts.length >= 2) {
-                                    setWidget(self, "blocks_curve", formatCurve(lerpCurve(pts, NUM_BLOCKS)));
+                                    setWidget(self, "blocks_curve", formatCurve(lerpCurve(pts, numBlocks(self))));
                                 }
                                 const named = body.named || {};
                                 cfg.named.forEach((k) => {
@@ -364,7 +377,8 @@ app.registerExtension({
             // low/mid/high zone dividers
             ctx.strokeStyle = "rgba(255,255,255,0.18)";
             ctx.setLineDash([3, 3]);
-            [ZONE_LOW_END - 0.5, ZONE_MID_END - 0.5].forEach((idx) => {
+            const zLow = Math.floor((n + 1) / 3), zMid = Math.floor(((n + 1) * 2) / 3);
+            [zLow - 0.5, zMid - 0.5].forEach((idx) => {
                 const x = r.x + (idx / n) * r.w;
                 ctx.beginPath();
                 ctx.moveTo(x, r.y);
@@ -416,15 +430,15 @@ app.registerExtension({
             ctx.fillStyle = "rgba(255,255,255,0.4)";
             ctx.textAlign = "center";
             const zoneY = r.y - 3;
-            ctx.fillText("LOW", r.x + ((ZONE_LOW_END - 1) / 2 / n) * r.w, zoneY);
-            ctx.fillText("MID", r.x + ((ZONE_LOW_END + ZONE_MID_END - 1) / 2 / n) * r.w, zoneY);
-            ctx.fillText("HIGH", r.x + ((ZONE_MID_END + n) / 2 / n) * r.w, zoneY);
+            ctx.fillText("LOW", r.x + ((zLow - 1) / 2 / n) * r.w, zoneY);
+            ctx.fillText("MID", r.x + ((zLow + zMid - 1) / 2 / n) * r.w, zoneY);
+            ctx.fillText("HIGH", r.x + ((zMid + n) / 2 / n) * r.w, zoneY);
             ctx.textAlign = "left";
 
             // hover/drag tooltip
             if (activeIdx >= 0 && this.lcHoverPos) {
                 const v = vals[activeIdx];
-                const lines = [zoneLabel(activeIdx), `Block ${activeIdx}`, `Value: ${v.toFixed(3)}`];
+                const lines = [zoneLabel(activeIdx, n + 1), `Block ${activeIdx}`, `Value: ${v.toFixed(3)}`];
                 ctx.save();
                 ctx.font = "10px sans-serif";
                 const padding = 6;

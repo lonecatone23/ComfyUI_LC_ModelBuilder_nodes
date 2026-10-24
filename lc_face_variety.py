@@ -419,7 +419,7 @@ class LCFaceVarietyScorer:
             "Faces: deepghs anime face detector (MIT). CCIP by deepghs (OpenRAIL), huggingface.co/deepghs/ccip_onnx.",
         ]
         thumbs = [rgb[:, :, :3] for rgb in arr]
-        return (share, 100.0 * share if ok else float("nan"), -1.0, g, chr(10).join(lines), _grid(thumbs), len(arr))
+        return (share, 100.0 * share if ok else float("nan"), -1.0, g, chr(10).join(lines), _grid(thumbs), used)
 
 
 NODE_CLASS_MAPPINGS = {"LCFaceVarietyScorer": LCFaceVarietyScorer}

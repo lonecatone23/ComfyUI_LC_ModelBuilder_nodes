@@ -24,6 +24,8 @@ import comfy.lora
 import comfy.model_management
 import comfy.utils
 import folder_paths
+from comfy.weight_adapter.base import WeightAdapterBase
+from comfy.weight_adapter.lora import LoRAAdapter
 
 from .lc_model_merge_any import _dequant, _is_quant, _param, _precision
 
@@ -73,6 +75,38 @@ def _full(model, key, device):
     if patches:
         w = comfy.lora.calculate_weight(patches, w, key, intermediate_dtype=torch.float32)
     return w
+
+
+def _lora_delta(p, mkey, key, base, device):
+    """One LoRA layer's change to `base` at strength 1, or None when it cannot be read.
+    A plain LoRA uses up x down x alpha / rank. LoHa, LoKr, LoCon with a mid, DoRA and the rest go through the adapter's
+    own calculate_weight on the base weight (patched minus base), so every format is read the way ComfyUI applies it."""
+    ws = getattr(p, "weights", None)
+    if isinstance(p, LoRAAdapter) and len(ws) > 4 and ws[3] is None and ws[4] is None:
+        up, down = ws[0].to(device, torch.float32), ws[1].to(device, torch.float32)
+        alpha = float(ws[2]) if ws[2] is not None else down.shape[0]
+        try:
+            return (up.flatten(1) @ down.flatten(1)).reshape(base.shape) * (alpha / down.shape[0])
+        except RuntimeError:
+            return None
+    if isinstance(mkey, tuple):  # a slice of a fused layer: not compared
+        return None
+    if isinstance(p, tuple):  # an old-style ("diff", (tensor,)) patch
+        if len(p) > 1 and p[0] == "diff" and p[1] and isinstance(p[1][0], torch.Tensor):
+            try:
+                return p[1][0].to(device, torch.float32).reshape(base.shape)
+            except RuntimeError:
+                return None
+        return None
+    if not isinstance(p, WeightAdapterBase):
+        return None
+    try:
+        patched = p.calculate_weight(base.clone(), key, 1.0, 1.0, None, lambda t: t, torch.float32)
+    except Exception:
+        return None
+    if patched is None or patched.shape != base.shape:
+        return None
+    return patched.to(device, torch.float32) - base
 
 
 def _block_of(key: str) -> str:
@@ -216,26 +250,18 @@ class LCModelFingerprint:
 
     def _lora(self, model, reference, lora_name, device):
         """Each LoRA layer's change (up x down x alpha / rank) against the checkpoint's change from the base."""
-        path = folder_paths.get_full_path("loras", lora_name)
+        path = folder_paths.get_full_path_or_raise("loras", lora_name)
         sd = comfy.utils.load_torch_file(path, safe_load=True)
         key_map = comfy.lora.model_lora_keys_unet(reference.model, {})
         patches = comfy.lora.load_lora(sd, key_map, log_missing=False)
         per_block, corrs, strengths, weights = {}, [], [], []
         for mkey, p in patches.items():
             key = mkey[0] if isinstance(mkey, tuple) else mkey
-            ws = getattr(p, "weights", None)
-            if ws is None and isinstance(p, tuple) and len(p) > 1:
-                ws = p[1]
-            if not ws or len(ws) < 2 or not isinstance(ws[0], torch.Tensor) or not isinstance(ws[1], torch.Tensor):
-                continue
-            up, down = ws[0].to(device, torch.float32), ws[1].to(device, torch.float32)
-            alpha = float(ws[2]) if len(ws) > 2 and ws[2] is not None else down.shape[0]
             a, b = _full(model, key, device), _full(reference, key, device)
             if a is None or b is None or a.shape != b.shape:
                 continue
-            try:
-                lw = (up.flatten(1) @ down.flatten(1)).reshape(a.shape) * (alpha / down.shape[0])
-            except RuntimeError:
+            lw = _lora_delta(p, mkey, key, b, device)
+            if lw is None:
                 continue
             delta = (a - b).flatten()
             lw = lw.flatten()

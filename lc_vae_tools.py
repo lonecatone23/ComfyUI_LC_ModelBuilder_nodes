@@ -196,7 +196,11 @@ class LCVAESave:
         dt = {"fp32": torch.float32, "bf16": torch.bfloat16, "fp16": torch.float16}[precision]
         sd = {k: (v.to(dt) if v.is_floating_point() else v).contiguous().cpu() for k, v in vae.get_sd().items()}
         root = folder_paths.get_folder_paths("vae")[0]
-        base = (filename.strip() or "LC_merged_vae").replace("\\", "/")
+        base = (filename.strip() or "LC_merged_vae").replace("\\", "/").strip("/")
+        base = base[:-12] if base.lower().endswith(".safetensors") else base
+        base = os.path.abspath(os.path.join(root, base or "LC_merged_vae"))
+        if not base.startswith(os.path.join(os.path.abspath(root), "")):  # trailing separator: "vae2" is outside
+            raise ValueError("LC VAE Save: filename must stay inside models/vae")
         out = os.path.join(root, base + ".safetensors")
         n = 1
         while os.path.exists(out):

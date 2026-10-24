@@ -8,6 +8,7 @@ Model and checkpoint merging tools by lonecatone23. Companion pack to [ComfyUI_L
 |---|---|
 | LC Krea2 Block Merge Advanced | Merge two Krea2 checkpoints with a draggable per-block ratio curve across the 28 uniform MMDiT blocks, plus individual sliders for the 10 named regions. Save/load named presets. |
 | LC Anima Block Merge Advanced | The same for Anima: a curve over its 28 blocks, plus sliders for the x embedder, timestep embedder and norm, LLM adapter and final layer. |
+| LC MOSS Block Merge Advanced | The same for MOSS Image: a curve over its 42 layers, plus sliders for picture in, prompt in, timestep, shared modulation and the final layer. |
 | LC Krea2 Semantic Vector Tuner | Amplify or attenuate regions of a single Krea2 checkpoint's own weights. Not a merge — one model in, one model out. |
 | LC Checkpoint Save | All-in-one checkpoint saver — model + clip + vae, all required. Adds an `enabled` toggle and a per-save `embed_workflow` toggle that core's stock Save Checkpoint node doesn't have. |
 | LC Diffusion Model Save | Same as LC Checkpoint Save but model-only — no clip/vae sockets at all. |
@@ -16,6 +17,7 @@ Model and checkpoint merging tools by lonecatone23. Companion pack to [ComfyUI_L
 | LC LoRA Save | 🧪 **BETA, still in testing.** Saves an edited LoRA as a standard file with every edit baked in, optionally at a new rank. |
 | LC Krea2 LoRA Block Scan | 🧪 **BETA, still in testing.** Finds where a LoRA locks the face or changes the whole image: renders a seed batch with each block group turned off, scores every row, and suggests a block curve for the Editor. |
 | LC Krea2 LoRA Merge | 🧪 **BETA, still in testing.** Merges two to four Krea 2 LoRAs with a per-block A / B curve (sum or TIES), applies the result like a LoRA loader and outputs it for LC LoRA Save. |
+| LC LoRA Bake 🍞 | Bakes up to 4 LoRAs into a model and saves it as a new model file, with a per-block strength curve. Reads every LoRA format ComfyUI reads. The recipe goes into the file's metadata. |
 | LC Model Merge (any precision) | Merges two models stored in different precisions (bf16 with fp8, int8, nvfp4 or GGUF, in either order). The result stays full precision. |
 | LC Model Quantize 🗜️ | Saves a smaller copy of a model: fp8, mxfp8, nvfp4, int8 or int4 (load with the stock loader) or GGUF Q8_0 to Q2_K. From the wired MODEL (LoRAs and merges baked in) or straight from a file of any size. |
 | LC VAE Merge | Merges the decoders of two VAEs of the same family, coarse shapes to fine texture. The encoder stays the base's, so the result still fits the models made for it. |
@@ -123,6 +125,23 @@ Tested on Better Lip Bite, which both locks the face and changes the whole image
 - **Block Scan** scores face lock with **CCIP**, a model made for anime characters (photo face models miss on anime), on each image's main face. The score is the share of seed pairs CCIP calls the same character: about 0.1 to 0.2 for the base model, 1.0 for a LoRA that draws one person every time. Noise is about 0.15 at 8 seeds. The models download once to `models/ccip/` (about 200 MB, checksum-verified).
 - Defaults follow Anima: 30 steps, cfg 4.5, er_sde, 896 x 1152. Wire a real negative.
 - ⚠️ On a LoRA that bakes one face into every layer (like a style LoRA trained on one person), no single block group frees it. Turn several down a little, or remove the face LoRA itself with LoRA Merge at a negative strength.
+
+### LC MOSS Block Merge Advanced
+
+The Krea2 Block Merge Advanced for MOSS Image. MOSS has one stream (text and picture go through the same 42 layers), so the curve covers all of them. Core has no MOSS merge node.
+
+- **0 = all model1, 1 = all model2**, per layer and per named slider (**image_in**, **text_in**, **timestep**, shared modulation, final layer).
+- Bundled presets: **50_50**, **model2_early**, **model2_look**, **model2_late**. Your own save to `web/moss_block_presets/`.
+
+### LC LoRA Bake 🍞
+
+Puts LoRAs into the model itself, so the result loads as a plain model (and can be quantized with LC Model Quantize).
+
+- Up to 4 LoRAs, each with its own strength.
+- **blocks_curve** (optional): one number per block, comma list, multiplies each block's strength. **outside_blocks** sets the layers outside the blocks (embedders, text side, final layer).
+- Layers no LoRA touches are copied byte for byte. The model, LoRAs, strengths and curve go into the metadata as **lc_merge**.
+- **device**: cpu uses no VRAM (about a minute), gpu is faster.
+- 💡 Bake from the bf16 / fp16 file, then quantize the result.
 
 ### LC Model Merge (any precision)
 

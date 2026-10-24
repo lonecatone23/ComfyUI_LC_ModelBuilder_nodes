@@ -83,12 +83,16 @@ def _family(keys, shapes=None):
         return "Z-Image"
     if has("llm_adapter"):
         return "Anima"
+    if has("shared_block_modulation") or (has("video_embedder") and has("text_embedder")):
+        return "MOSS Image"
     if has("token_refiner") or has("audio_patch_proj") or has("adaln_basis"):
         return "MiniMax H3"
     if has("adaln_single") and has("audio"):
         return "LTX 2"
     if has("adaln_single"):
         return "LTX"
+    if has("content_mode_blocks"):
+        return "Flux 3 Klein"
     if has("double_stream_blocks"):
         return "HiDream"
     if has("distilled_guidance_layer"):
@@ -284,6 +288,24 @@ def sketch(name: str, w: torch.Tensor, device) -> torch.Tensor:
     return out.cpu()
 
 
+def _rng_tag():
+    """Where sketches are hashed (device type + torch version): the random hash differs between CPU and GPU, and maybe
+    between torch versions, so sketches only line up with library entries made the same way."""
+    return f"{comfy.model_management.get_torch_device().type}, torch {torch.__version__.split('+')[0]}"
+
+
+def _rng_note(entries):
+    """A warning line when library entries were hashed on another device / torch (entries from before the tag: unknown)."""
+    here = _rng_tag()
+    other = sorted({e["rng"] for e in entries if e.get("rng") and e["rng"] != here})
+    if not other:
+        return []
+    n = sum(1 for e in entries if e.get("rng") and e["rng"] != here)
+    return [f"Warning: {n} library entr{'y was' if n == 1 else 'ies were'} fingerprinted on {', '.join(other)}, this run "
+            f"on {here}. Those fingerprints do not line up with this one: rebuild them here (LC Fingerprint Library, "
+            "skip_known off)."]
+
+
 def _model_tensors(path, h):
     """(normalized name, weight) for every 2D+ weight of a model file, read one at a time. Quantized formats that need
     their pack to decode come back as None (the caller loads those through ComfyUI)."""
@@ -343,7 +365,10 @@ def _lora_deltas(path, mods, km):
             name = _norm(target)
             if off is None:
                 if name in full:
-                    full[name] = full[name] + d.reshape(full[name].shape)
+                    try:
+                        full[name] = full[name] + d.reshape(full[name].shape)
+                    except RuntimeError:
+                        continue
                 else:
                     full[name] = d
                 continue
@@ -429,10 +454,12 @@ def add_to_library(path, sk, shp, kind, family, note=""):
     dest = os.path.join(LIB, rel)
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     meta = {"name": name, "kind": kind, "family": family, "source": os.path.abspath(path), "note": note,
-            "shapes": json.dumps(shp), "sketch": str(SKETCH), "added": time.strftime("%Y-%m-%d %H:%M:%S")}
+            "shapes": json.dumps(shp), "sketch": str(SKETCH), "added": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "rng": _rng_tag()}
     comfy.utils.save_torch_file({k: v.contiguous() for k, v in sk.items()}, dest, metadata=meta)
     ix = _index()
-    ix[os.path.abspath(path)] = {"stamp": _stamp(path), "file": rel, "name": name, "kind": kind, "family": family}
+    ix[os.path.abspath(path)] = {"stamp": _stamp(path), "file": rel, "name": name, "kind": kind, "family": family,
+                                 "rng": _rng_tag()}
     _save_index(ix)
     return rel
 
@@ -500,7 +527,9 @@ def identify_sketch(kind, family, sk, precision=("bf16", 0.0015)):
     lines = []
     if kind == "lora":
         same = []
-        for e in load_entries(family, "lora"):
+        lib_loras = load_entries(family, "lora")
+        lines += _rng_note(lib_loras)
+        for e in lib_loras:
             shared = [k for k in sk if k in e["sketch"]]
             if not shared:
                 continue
@@ -518,6 +547,7 @@ def identify_sketch(kind, family, sk, precision=("bf16", 0.0015)):
     models = load_entries(family, "model")
     if not models:
         return [f"No {family} models in the library yet to compare with."], None
+    lines += _rng_note(models)
     store, noise = precision
     scored = sorted(((compare_models(sk, e)[0], e) for e in models), key=lambda x: -x[0])
     exclude = []

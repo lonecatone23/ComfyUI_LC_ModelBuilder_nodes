@@ -24,6 +24,7 @@ const COLORS = {
     LCAnimaLoRABlockScan: { color: "#6a5220", bgcolor: "#6a5220" },
     LCAnimaLoRAMerge: { color: "#6a5220", bgcolor: "#6a5220" },
     LCAnimaBlockMergeAdvanced: { color: "#5a4a1a", bgcolor: "#5a4a1a" },
+    LCMOSSBlockMergeAdvanced: { color: "#5a4a1a", bgcolor: "#5a4a1a" },
     LCModelQuantize: { color: "#6a5220", bgcolor: "#6a5220" },
     LCStripMetadata: { color: "#6a5220", bgcolor: "#6a5220" },
     // VAE nodes wear ComfyUI's standard red, like Load VAE

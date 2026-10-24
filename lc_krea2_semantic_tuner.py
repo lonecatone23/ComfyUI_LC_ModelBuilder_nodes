@@ -161,6 +161,10 @@ class LCKrea2SemanticVectorTuner:
                 continue
 
             patch_key = k
+            # a model a sampler has loaded holds its patches baked in, the original in backup (as core's get_key_patches)
+            bk = m.backup.get(patch_key) if hasattr(m, "backup") else None
+            if bk is not None:
+                base_weight = bk.weight
 
             current_patches = m.patches.get(patch_key, [])
             if current_patches:

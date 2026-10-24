@@ -26,7 +26,7 @@
           "source": "en",
           "texts": {
             "en": {
-              "text": "# LC LoRA Extract 🧪\n\n### 🛑🚫✋ Where this stands\n- Built 2026-10-10, ModelBuilder 0.4.0 (not pushed yet).\n- Takes about 9 minutes per extraction on a 5090. Both models must be **bf16** (fp8 sources come out 2.7x bigger and full of rounding noise).\n\n## LC LoRA Extract\n\n**parts:** \n- **all layers**. Use on Krea 2 Turbo at 1.0\n- **blocks only**. Leaves out text fusion (on Raw it cancels the look). Use on Krea 2 Raw at 1.0 to 1.25.\n\n**Settings**\n- **rank** 256, **keep** 0.90: matched the full model. Rank 512 was not closer.\n- **min_change** 0.001: unchanged layers are left out *\n- Files land in models/loras/Krea 2/Your Loras with _new in the name, so nothing gets overwritten.\n\n---"
+              "text": "# LC LoRA Extract 🧪\n\n### 🛑🚫✋ Where this stands\n- In ModelBuilder since 0.4.0. **applied_loras** since 0.6.1.\n- Takes about 9 minutes per extraction on a 5090. Both models must be **bf16** (fp8 sources come out 2.7x bigger and full of rounding noise).\n\n## LC LoRA Extract\n\n**parts:** \n- **all layers**. Use on Krea 2 Turbo at 1.0\n- **blocks only**. Leaves out text fusion (on Raw it cancels the look). Use on Krea 2 Raw at 1.0 to 1.25.\n\n**Settings**\n- **rank** 256, **keep** 0.90: matched the full model. Rank 512 was not closer.\n- **min_change** 0.001: unchanged layers are left out *\n- Files land in models/loras/Krea 2/Your Loras with _new in the name, so nothing gets overwritten.\n\n- **applied_loras**: **included** = the LoRAs and patches already on the **finetuned** wire are part of what gets extracted. Load Turbo, stack your LoRAs at their strengths, and get them back as one LoRA (rank 128 came out very close to the real stack).\n\n---"
             }
           },
           "titles": {
@@ -41,7 +41,7 @@
       },
       "widgets_values": [
         "English ✏️",
-        "# LC LoRA Extract 🧪\n\n### 🛑🚫✋ Where this stands\n- Built 2026-10-10, ModelBuilder 0.4.0 (not pushed yet).\n- Takes about 9 minutes per extraction on a 5090. Both models must be **bf16** (fp8 sources come out 2.7x bigger and full of rounding noise).\n\n## LC LoRA Extract\n\n**parts:** \n- **all layers**. Use on Krea 2 Turbo at 1.0\n- **blocks only**. Leaves out text fusion (on Raw it cancels the look). Use on Krea 2 Raw at 1.0 to 1.25.\n\n**Settings**\n- **rank** 256, **keep** 0.90: matched the full model. Rank 512 was not closer.\n- **min_change** 0.001: unchanged layers are left out *\n- Files land in models/loras/Krea 2/Your Loras with _new in the name, so nothing gets overwritten.\n\n---"
+        "# LC LoRA Extract 🧪\n\n### 🛑🚫✋ Where this stands\n- In ModelBuilder since 0.4.0. **applied_loras** since 0.6.1.\n- Takes about 9 minutes per extraction on a 5090. Both models must be **bf16** (fp8 sources come out 2.7x bigger and full of rounding noise).\n\n## LC LoRA Extract\n\n**parts:** \n- **all layers**. Use on Krea 2 Turbo at 1.0\n- **blocks only**. Leaves out text fusion (on Raw it cancels the look). Use on Krea 2 Raw at 1.0 to 1.25.\n\n**Settings**\n- **rank** 256, **keep** 0.90: matched the full model. Rank 512 was not closer.\n- **min_change** 0.001: unchanged layers are left out *\n- Files land in models/loras/Krea 2/Your Loras with _new in the name, so nothing gets overwritten.\n\n- **applied_loras**: **included** = the LoRAs and patches already on the **finetuned** wire are part of what gets extracted. Load Turbo, stack your LoRAs at their strengths, and get them back as one LoRA (rank 128 came out very close to the real stack).\n\n---"
       ],
       "widgets_values_named": {
         "language": "English ✏️",
@@ -238,7 +238,9 @@
         "Krea 2/Your Loras/extracted_lora",
         "bf16",
         true,
-        true
+        true,
+        "keep all",
+        false
       ],
       "widgets_values_named": {
         "parts": "all layers",

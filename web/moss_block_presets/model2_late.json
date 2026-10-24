@@ -1,0 +1,13 @@
+{
+  "name": "model2_late",
+  "blocks": "0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1",
+  "named": {
+    "image_in": 0.0,
+    "text_in": 0.0,
+    "timestep": 0.0,
+    "modulation": 0.0,
+    "head_modulation": 0.0,
+    "final_norm": 0.0,
+    "final_layer": 0.0
+  }
+}

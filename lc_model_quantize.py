@@ -68,6 +68,8 @@ _TOP_KEEP = {
     "modulation", "txt_norm", "img_norm", "time_proj", "caption_projection", "t_block", "time_guidance_embed",
     "txt_in_norm", "distilled_guidance_layer", "time_caption_embed", "norm_final",
     "first", "last", "tmlp", "tproj", "txtmlp",  # Krea 2
+    "video_embedder", "text_embedder", "time_embedding", "shared_block_modulation", "video_head_modulation",
+    "final_norm_video", "final_linear_video",  # MOSS Image (Comfy-Org's int8 keeps all of these bf16)
 }
 # 4-bit formats that also round the activations (nvfp4, int4 w4a4) break on layers fed by the timestep (adaLN /
 # modulation) and on the text side: those stay full precision there. Tested on Anima: noise without, a picture with.
@@ -351,54 +353,66 @@ class LCModelQuantize:
         else:
             folder, name = source.split("/", 1)
             src = _FileSource(folder_paths.get_full_path_or_raise(folder, name))
-        dev = mm.get_torch_device()
-        keys = src.keys()
-        is_gguf = format in GGUF
-        pp = src.policy_prefix
+        try:  # the source file is open from here: close it on any early error (it locks the file on Windows)
+            dev = mm.get_torch_device()
+            keys = src.keys()
+            is_gguf = format in GGUF
+            pp = src.policy_prefix
 
-        def pk(k):
-            return k[len(pp):] if pp and k.startswith(pp) else k
+            def pk(k):
+                return k[len(pp):] if pp and k.startswith(pp) else k
 
-        # plan: what every tensor becomes
-        pkeys = [pk(k) for k in keys]
-        edges1 = _edges(pkeys, 1) if protect_edges else set()
-        bump = set()
-        if is_gguf and GGUF[format][1]:
-            bump = _edges(pkeys, 2)
-        plan = {}
-        for k in keys:
-            shape = src.shape(k)
-            blk = _block_of(pk(k))
-            act4 = not is_gguf and NATIVE[format] in _ACT4 and _ACT4_KEEP.search(pk(k))
-            if not _quantizable(pk(k), shape) or (blk is not None and blk in edges1) or act4:
-                plan[k] = None
-                continue
-            if is_gguf:
-                q = GGUF[format][1] if (blk is not None and blk in bump) else GGUF[format][0]
-                cols = shape[1]
-                if cols % gq.TYPES[q][1]:
-                    q = "Q8_0" if cols % 32 == 0 else None
-                plan[k] = q
-            else:
-                plan[k] = NATIVE[format]
+            # plan: what every tensor becomes
+            pkeys = [pk(k) for k in keys]
+            edges1 = _edges(pkeys, 1) if protect_edges else set()
+            bump = set()
+            if is_gguf and GGUF[format][1]:
+                bump = _edges(pkeys, 2)
+            plan = {}
+            for k in keys:
+                shape = src.shape(k)
+                blk = _block_of(pk(k))
+                act4 = not is_gguf and NATIVE[format] in _ACT4 and _ACT4_KEEP.search(pk(k))
+                if not _quantizable(pk(k), shape) or (blk is not None and blk in edges1) or act4:
+                    plan[k] = None
+                    continue
+                if is_gguf:
+                    q = GGUF[format][1] if (blk is not None and blk in bump) else GGUF[format][0]
+                    cols = shape[1]
+                    if cols % gq.TYPES[q][1]:
+                        q = "Q8_0" if cols % 32 == 0 else None
+                    plan[k] = q
+                else:
+                    plan[k] = NATIVE[format]
 
-        # output path, disk space
-        base = filename.strip() or f"{src.name}-{format.split(' (')[0].replace('GGUF ', '').replace(' ', '_')}"
-        ext = ".gguf" if is_gguf else ".safetensors"
-        roots = folder_paths.get_folder_paths("diffusion_models")
-        root = next((r for r in roots if os.path.basename(os.path.normpath(r)).lower() == "diffusion_models"), roots[0])
-        out = os.path.join(root, base + ext)
-        n = 1
-        while os.path.exists(out):
-            out = os.path.join(root, f"{base}_{n}{ext}")
-            n += 1
-        os.makedirs(os.path.dirname(out), exist_ok=True)
-        src_bytes = sum(math.prod(src.shape(k)) * 2 for k in keys)
-        est = self._estimate(src, keys, plan, is_gguf)
-        free = shutil.disk_usage(os.path.dirname(out)).free
-        if est * 1.05 > free:
-            raise RuntimeError(f"LC Model Quantize: about {est / 1e9:.1f} GB needed, only {free / 1e9:.1f} GB free on "
-                               f"that drive.")
+            # output path, disk space
+            base = filename.strip() or f"{src.name}-{format.split(' (')[0].replace('GGUF ', '').replace(' ', '_')}"
+            ext = ".gguf" if is_gguf else ".safetensors"
+            roots = folder_paths.get_folder_paths("diffusion_models")
+            root = next((r for r in roots if os.path.basename(os.path.normpath(r)).lower() == "diffusion_models"), roots[0])
+            base = base.replace("\\", "/").strip("/")
+            for e in (".safetensors", ".gguf"):  # no double extension
+                if base.lower().endswith(e):
+                    base = base[: -len(e)]
+            base = os.path.abspath(os.path.join(root, base or src.name))
+            if not base.startswith(os.path.join(os.path.abspath(root), "")):  # trailing separator: a sibling folder is outside
+                raise ValueError("LC Model Quantize: filename must stay inside models/diffusion_models")
+            out = os.path.join(root, base + ext)
+            n = 1
+            while os.path.exists(out):
+                out = os.path.join(root, f"{base}_{n}{ext}")
+                n += 1
+            os.makedirs(os.path.dirname(out), exist_ok=True)
+            src_bytes = sum(math.prod(src.shape(k)) * 2 for k in keys)
+            est = self._estimate(src, keys, plan, is_gguf)
+            free = shutil.disk_usage(os.path.dirname(out)).free
+            if est * 1.05 > free:
+                raise RuntimeError(f"LC Model Quantize: about {est / 1e9:.1f} GB needed, only {free / 1e9:.1f} GB free on "
+                                   f"that drive.")
+        except BaseException:
+            if hasattr(src, "close"):
+                src.close()
+            raise
 
         pbar = comfy.utils.ProgressBar(len(keys))
         stats = {"err": 0.0, "n": 0, "worst": (0.0, ""), "kinds": {}}

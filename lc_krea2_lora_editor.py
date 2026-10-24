@@ -82,6 +82,31 @@ def _key_of(patch_key):
     return patch_key if isinstance(patch_key, str) else patch_key[0]
 
 
+def _slice_entry(entry, offset, weight, prev):
+    """A LoRA that targets one slice of a fused layer (key, (dim, start, size)): widen up / down to the whole layer
+    (zeros outside the slice) and stack it onto the slices already there, so LC LoRA Save keeps every slice, not the last.
+    Falls back to the slice as it was when the layer's shape is unknown."""
+    if weight is None or weight.ndim != 2 or len(offset) != 3:
+        return entry
+    dim, start, size = offset
+    rows, cols = weight.shape
+    up, down = entry["up"], entry["down"]
+    if dim == 0 and down.shape[1] == cols and up.shape[0] == size:
+        full_up = torch.zeros(rows, up.shape[1], dtype=up.dtype)
+        full_up[start:start + size] = up
+        full_down = down
+    elif dim == 1 and up.shape[0] == rows and down.shape[1] == size:
+        full_up = up
+        full_down = torch.zeros(down.shape[0], cols, dtype=down.dtype)
+        full_down[:, start:start + size] = down
+    else:
+        return entry
+    if prev and prev.get("kind") == "lora" and prev["up"].shape[0] == rows and prev["down"].shape[1] == cols:
+        full_up = torch.cat([prev["up"].to(full_up.dtype), full_up], 1)
+        full_down = torch.cat([prev["down"].to(full_down.dtype), full_down], 0)
+    return {"kind": "lora", "up": full_up, "down": full_down}
+
+
 def _where(model_key: str):
     """(block, module row) for a Krea 2 block layer, or None for anything outside the 28 blocks."""
     m = _BLOCK_RE.search(model_key)
@@ -272,7 +297,12 @@ class LCKrea2LoRAEditor:
                 L["after"] = abs(L["scale"]) * _lowrank_norm(up, down)
                 up = (up * s).to(ad.weights[0].dtype).cpu()
                 down = down.to(ad.weights[1].dtype).cpu()
-                out_layers[L["key"]] = {"kind": "lora", "up": up, "down": down}
+                entry = {"kind": "lora", "up": up, "down": down}
+                if isinstance(L["pk"], tuple) and len(L["pk"]) > 1 and L["pk"][1] is not None:
+                    if model_sd is None:
+                        model_sd = model.model.state_dict()
+                    entry = _slice_entry(entry, L["pk"][1], model_sd.get(L["key"]), out_layers.get(L["key"]))
+                out_layers[L["key"]] = entry
                 new_patches[L["pk"]] = LoRAAdapter(set(), (up, down, None, None, None, None))
             else:
                 L["after"] = L["norm"] * abs(L["scale"])
@@ -419,7 +449,7 @@ class LCLoRASave:
         rel = rel[:-12] if rel.lower().endswith(".safetensors") else rel
         root = folder_paths.get_folder_paths("loras")[0]
         base = os.path.abspath(os.path.join(root, rel))
-        if not base.startswith(os.path.abspath(root)):
+        if not base.startswith(os.path.join(os.path.abspath(root), "")):  # trailing separator: "loras2" is outside
             raise ValueError("filename must stay inside models/loras")
         path, n = base + ".safetensors", 1
         while os.path.exists(path):
