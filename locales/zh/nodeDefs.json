@@ -1,0 +1,814 @@
+{
+  "LCKrea2BlockMergeAdvanced": {
+    "description": "Krea2 checkpoint 合并，带可拖动的逐块比例曲线，覆盖 28 个统一的 MMDiT 块，另有 10 个命名区域的独立滑块（first/tmlp/txtmlp/tproj、txtfusion.* x5、last）。复用 ComfyUI 自带的 ModelMergeBlocks 补丁机制（get_key_patches + add_patches，最长前缀匹配），没有自定义张量运算。保存会写入 web/krea2_block_presets/<name>.json（块和命名滑块一起保存）。",
+    "inputs": {
+      "model1": {
+        "tooltip": "比例 0 一侧。比例为 0.0 的块/区域完全来自此 checkpoint。"
+      },
+      "model2": {
+        "tooltip": "比例 1 一侧。比例为 1.0 的 block/区域完全来自此 checkpoint。"
+      },
+      "preset": {
+        "tooltip": "9 个内置预设（50_50、face_favor、detail_focus、style_favor、sine_wave、resonance_blocks、even_blend、core_focus、heavy_transplant_anchored），外加你自己保存的预设。加载后会同时设置 28 个 block 的曲线和 10 个命名滑块。Custom 保留当前拖动/输入的值。"
+      },
+      "edit_mode": {
+        "tooltip": "smooth = 拖动一个块并混合相邻块。spike = 只移动一个块。"
+      },
+      "smooth_radius": {
+        "tooltip": "smooth 模式的邻域窗口（以块为单位，0 = 近似 spike）。"
+      },
+      "blocks_curve": {
+        "tooltip": "28 个比例的逗号列表（blocks.0. - blocks.27.）。0 = 全部用 model1，1 = 全部用 model2。preset 为 Custom 时以此为准。"
+      },
+      "first": {
+        "tooltip": "first。— 最早的输入/embedding 权重，在 block 0 之前。"
+      },
+      "tmlp": {
+        "tooltip": "tmlp. — timestep-embedding MLP(timestep 条件)。"
+      },
+      "txtmlp": {
+        "tooltip": "txtmlp。— 文本 embedding MLP（文本 conditioning）。"
+      },
+      "tproj": {
+        "tooltip": "tproj. — 时间步投影层。"
+      },
+      "txtfusion_layer0": {
+        "tooltip": "txtfusion.layerwise_blocks.0. — 第一个文本/图像融合 block。"
+      },
+      "txtfusion_layer1": {
+        "tooltip": "txtfusion.layerwise_blocks.1. — 第二个文本/图像融合块。"
+      },
+      "txtfusion_projector": {
+        "tooltip": "txtfusion.projector. — 将融合后的文本特征投射到主流中。"
+      },
+      "txtfusion_refiner0": {
+        "tooltip": "txtfusion.refiner_blocks.0. — 第一个融合 refiner 块。"
+      },
+      "txtfusion_refiner1": {
+        "tooltip": "txtfusion.refiner_blocks.1. — 第二个融合精修 block。"
+      },
+      "last": {
+        "tooltip": "last. — 最终输出层，位于 block 27 之后。"
+      },
+      "save_name": {
+        "tooltip": "web/krea2_block_presets/ 下的文件名（不带扩展名）。"
+      },
+      "save_curve": {
+        "tooltip": "运行时，把 save_name.json 写入 web/krea2_block_presets/。"
+      }
+    }
+  },
+  "LCKrea2SemanticVectorTuner": {
+    "description": "放大或衰减单个 Krea2 checkpoint 权重的特定区域。这不是合并。沿用 Arthemy SDXL Suite 自带的调节机制（烘焙现有 patch、缩放、通过 ModelPatcher.add_patches 重新应用差值），只是指向 Krea2 真实的 block/区域前缀，而不是 SDXL 的 UNet 结构。3 个分区滑块覆盖 28 个均匀 block（可用可选的逐 block 覆盖字符串做更精细的控制）；10 个有名称、结构上各不相同的区域各有一个滑块。",
+    "inputs": {
+      "model": {
+        "tooltip": "按区域放大/减弱的单个 checkpoint。这不是合并——没有第二个模型。"
+      },
+      "mode": {
+        "tooltip": "Soft Value 会缓冲滑块，使 0-2 保持安全（高于 1.0 的值落在约 1.0-1.13x）。Real Value 把每个滑块当作字面倍数应用。"
+      },
+      "base_scale": {
+        "tooltip": "对不属于 28 个 block 或 10 个命名区域的任何权重所用的后备倍数。"
+      },
+      "low_blocks": {
+        "tooltip": "缩放 blocks.0. - blocks.8.（low 区）。"
+      },
+      "mid_blocks": {
+        "tooltip": "缩放 blocks.9. - blocks.17.（中段区域）。"
+      },
+      "high_blocks": {
+        "tooltip": "缩放 blocks.18. - blocks.27.(高区)。"
+      },
+      "blocks_override": {
+        "tooltip": "可选，以逗号分隔的恰好 28 个倍数，每个 block 一个。存在时会覆盖 28 个 block 的 low_blocks/mid_blocks/high_blocks。下面的命名区域不受影响——它们始终由各自的滑块决定。"
+      },
+      "first": {
+        "tooltip": "first。— 最早的输入/embedding 权重，在 block 0 之前。"
+      },
+      "tmlp": {
+        "tooltip": "tmlp. — timestep-embedding MLP(timestep 条件)。"
+      },
+      "txtmlp": {
+        "tooltip": "txtmlp。— 文本 embedding MLP（文本 conditioning）。"
+      },
+      "tproj": {
+        "tooltip": "tproj. — 时间步投影层。"
+      },
+      "txtfusion_layer0": {
+        "tooltip": "txtfusion.layerwise_blocks.0. — 第一个文本/图像融合 block。"
+      },
+      "txtfusion_layer1": {
+        "tooltip": "txtfusion.layerwise_blocks.1. — 第二个文本/图像融合块。"
+      },
+      "txtfusion_projector": {
+        "tooltip": "txtfusion.projector. — 将融合后的文本特征投射到主流中。"
+      },
+      "txtfusion_refiner0": {
+        "tooltip": "txtfusion.refiner_blocks.0. — 第一个融合 refiner 块。"
+      },
+      "txtfusion_refiner1": {
+        "tooltip": "txtfusion.refiner_blocks.1. — 第二个融合精修 block。"
+      },
+      "last": {
+        "tooltip": "last. — 最终输出层，位于 block 27 之后。"
+      }
+    }
+  },
+  "LCCheckpointSave": {
+    "description": "保存一体式 checkpoint（model + clip + vae，三者都必需）。复用 ComfyUI 核心自带的 comfy.sd.save_checkpoint() 和 modelspec 元数据检测，文件格式与核心 Save Checkpoint 节点生成的相同。新增 enabled 开关（无需绕过节点即可跳过保存，因为保存节点没有输出可以透传），以及每次保存可单独设置的 embed_workflow 开关，不受全局 --disable-metadata 启动参数影响。若只需保存仅含扩散模型的文件，请改用 LC Diffusion Model Save。",
+    "inputs": {
+      "model": {
+        "tooltip": "要保存的 diffusion model。"
+      },
+      "clip": {
+        "tooltip": "必填 -- checkpoint 是一体式文件。"
+      },
+      "vae": {
+        "tooltip": "必填 -- checkpoint 是一体式文件。"
+      },
+      "filename_prefix": {
+        "tooltip": "output 目录下的子文件夹/前缀。"
+      },
+      "enabled": {
+        "tooltip": "Off = 完全跳过保存（不写入文件），无需真正旁路节点。可转换为输入，由图中其他位置的开关控制是否保存。"
+      },
+      "embed_workflow": {
+        "tooltip": "把提示词和工作流 JSON 写入保存文件的元数据。如果不想附带你确切的节点图，分享/发布 checkpoint 前请关闭。"
+      },
+      "metadata": {
+        "tooltip": "keep all = 此次保存通常写入的全部内容（开启 embed_workflow 时包含你的整个节点图）。necessary only = 仅保留加载所需的内容（如有量化设置）加上架构和触发词：不含工作流、训练细节、标题或编辑备注。分享文件前请使用。"
+      }
+    }
+  },
+  "LCDiffusionModelSave": {
+    "description": "只保存扩散模型 -- 不含 clip 和 vae。机制和元数据与 LC Checkpoint Save 相同（comfy.sd.save_checkpoint()，核心的 modelspec 检测），只是少了一体式文件里的文本编码器 / VAE 部分。可通过原版 Load Diffusion Model 节点正常加载回来 -- 它会自动去掉此保存路径加上的 model.diffusion_model. 前缀。enabled 和 embed_workflow 开关与 LC Checkpoint Save 相同。",
+    "inputs": {
+      "model": {
+        "tooltip": "要保存的 diffusion model。没有 clip/vae -- 只有模型。"
+      },
+      "filename_prefix": {
+        "tooltip": "output 目录下的子文件夹/前缀。"
+      },
+      "enabled": {
+        "tooltip": "Off = 完全跳过保存（不写入文件），无需真正旁路节点。可转换为输入，由图中其他位置的开关控制是否保存。"
+      },
+      "embed_workflow": {
+        "tooltip": "把提示词和工作流 JSON 写入保存文件的元数据。如果不想附带你确切的节点图，分享/发布 checkpoint 前请关闭。"
+      },
+      "metadata": {
+        "tooltip": "keep all = 此次保存通常写入的全部内容（开启 embed_workflow 时包含你的整个节点图）。necessary only = 仅保留加载所需的内容（如有量化设置）加上架构和触发词：不含工作流、训练细节、标题或编辑备注。分享文件前请使用。"
+      }
+    }
+  },
+  "LCFaceVarietyScorer": {
+    "description": "同脸测试。找出每张图中的主脸,用 ArcFace 将每张脸与其他所有脸两两比较,再取平均。score 0.0 - 1.0,越低 = 变化越多。crowd_score 比较每张图内部的脸(合影),没有图含 2 张以上人脸时为 -1。使用 InsightFace buffalo_l(首次自动下载,非商业研究许可)。",
+    "inputs": {
+      "images": {
+        "tooltip": "要测试的一批生成图。相同提示词、不同 seed 效果最好。8 张或更多。"
+      },
+      "same_threshold": {
+        "tooltip": "两张脸得分高于此值，就算作“可能是同一个人”，用于 same_pct。"
+      },
+      "min_face_px": {
+        "tooltip": "忽略比这更窄的检测到的脸(背景人物、倒影)。"
+      },
+      "device": {
+        "tooltip": "cpu 在所有安装上都能用,普通测试只需几秒。auto 先尝试 CUDA,失败则退回 CPU。"
+      },
+      "face_model": {
+        "tooltip": "photo = 对主脸使用 ArcFace，适用于写实模型。anime = 对每张图的主要动漫脸使用 CCIP，适用于动漫和插画模型（Anima、Illustrious、Pony）：写实人脸模型识别不了动漫脸。模型只下载一次（约 200 MB）。"
+      }
+    }
+  },
+  "LCKrea2LoRAEditor": {
+    "description": "加载 Krea 2 LoRA，支持逐 block、attention / MLP 和 spike 编辑，将其应用到模型，并输出编辑后的 LoRA 供 LC LoRA Save 使用。热力图显示每一层编辑前（轮廓）和编辑后（填充）的强度。",
+    "inputs": {
+      "model": {
+        "tooltip": "Krea 2 模型。编辑后的 LoRA 会应用到它上面，就像 LoRA loader 一样。"
+      },
+      "lora_name": {
+        "tooltip": "要编辑的 LoRA，来自 models/loras。"
+      },
+      "strength": {
+        "tooltip": "LoRA 整体强度，与 LoRA loader 相同。会烘焙进保存的 LoRA。"
+      },
+      "preset": {
+        "tooltip": "Full = 原样使用该 LoRA。每个 block 组预设会把对应 block 降到 0.3。人脸锁定在每个 LoRA 中位于不同的 block（Lip Bite：后段人脸 block 16-21，Amateur V4：人脸 block 4-9），所以请在固定 seed 批次上逐个尝试，保留能解放人脸的那个。Tame whole image = block 4-15 设为 0.7，配合 spike_soften 方向，可阻止 Lip Bite 改变整张图。拖动图形会切换到 Custom。"
+      },
+      "blocks": {
+        "tooltip": "28 个 block 倍率,0 到 2(1 = 不变)。在节点上拖动柱条。"
+      },
+      "attention": {
+        "tooltip": "每个 block 中 attention 层 (q, k, v, o, gate) 的倍率。"
+      },
+      "mlp": {
+        "tooltip": "每个 block 中 MLP 层（gate、up、down）的倍数。Krea 2 LoRA 的大部分权重通常在这里。"
+      },
+      "outside_blocks": {
+        "tooltip": "28 个 block 之外的层（text fusion、first、last）的倍率，前提是该 LoRA 有这些层。热力图的说明会告诉你有多少个。"
+      },
+      "spike_soften": {
+        "tooltip": "layers = 把比其他块中同一层强得多的层拉低到上限。directions = 在每一层内，压平占主导的一两个方向（仅限普通的 lora_A / lora_B 文件）。both = 两者都做。"
+      },
+      "spike_limit": {
+        "tooltip": "尖峰要多强才会被软化。layers：该层在 28 个 block 上中位数的倍数。directions：该层第二强方向的倍数（表现正常的 LoRA 大约在 2）。越低 = 软化越多。"
+      },
+      "blocks_in": {
+        "tooltip": "来自其他节点的 28 块曲线，例如 LC Krea2 LoRA Block Scan 的 blocks 输出。接入后会取代预设和柱状条。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "已应用编辑后 LoRA 的模型。"
+      },
+      "1": {
+        "tooltip": "编辑后的 LoRA，供 LC LoRA Save 使用。"
+      }
+    }
+  },
+  "LCLoRASave": {
+    "description": "把编辑过的 LoRA 保存为标准的 lora_A / lora_B safetensors 文件，所有编辑都已烘焙进去，因此在任何 LoRA 加载器里都以 strength 1.0 加载。编辑设置保存在元数据中。",
+    "inputs": {
+      "lora": {
+        "tooltip": "来自 LC LoRA Editor 或 LoRA Merge 的已编辑或已合并的 LoRA（Krea 2 或 Anima）。"
+      },
+      "filename": {
+        "tooltip": "保存在 models/loras 下。%source% = 原 LoRA 的名称。如果文件已存在，会追加一个数字。"
+      },
+      "rank": {
+        "tooltip": "0 = 保持每层的 rank。其他数值会把每一层重新拟合到该 rank（文件更小，保留最强的方向）。"
+      },
+      "enabled": {
+        "tooltip": "Off = 完全跳过保存（不写入文件），无需真正旁路节点。可转换为输入，由图中其他位置的开关控制是否保存。"
+      },
+      "embed_workflow": {
+        "tooltip": "把提示词和工作流 JSON 写入保存文件的元数据。如果不想附带你确切的节点图，分享/发布 checkpoint 前请关闭。"
+      },
+      "metadata": {
+        "tooltip": "keep all = 此次保存通常写入的全部内容（开启 embed_workflow 时包含你的整个节点图）。necessary only = 仅保留加载所需的内容（如有量化设置）加上架构和触发词：不含工作流、训练细节、标题或编辑备注。分享文件前请使用。"
+      }
+    }
+  },
+  "LCAnimaLoRAEditor": {
+    "description": "加载 Anima LoRA，支持逐 block、attention / MLP 和 spike 编辑，将其应用到模型，并输出编辑后的 LoRA 供 LC LoRA Save 使用。热力图显示每一层在编辑前后的强度。",
+    "inputs": {
+      "model": {
+        "tooltip": "Anima 模型。编辑后的 LoRA 会应用到它上面，就像 LoRA 加载器一样。"
+      },
+      "lora_name": {
+        "tooltip": "要编辑的 LoRA，来自 models/loras。"
+      },
+      "strength": {
+        "tooltip": "LoRA 整体强度，与 LoRA loader 相同。会烘焙进保存的 LoRA。"
+      },
+      "preset": {
+        "tooltip": "Full = 原样的 LoRA。每个 block group 预设会把对应的 block 调低到 0.3。在固定的 seed 批次上逐个试,保留能解放人脸的那个。拖动图表会切换到 Custom。"
+      },
+      "blocks": {
+        "tooltip": "28 个 block 倍率,0 到 2(1 = 不变)。在节点上拖动柱条。"
+      },
+      "attention": {
+        "tooltip": "每个 block 中 attention 层（self 和 cross attention）的倍数。"
+      },
+      "mlp": {
+        "tooltip": "每个 block 中 MLP 层的倍数。"
+      },
+      "outside_blocks": {
+        "tooltip": "28 个 block 之外的层（LLM adapter、最后一层）的倍率（如果 LoRA 有这些层）。heatmap 说明里会写明有多少个。"
+      },
+      "spike_soften": {
+        "tooltip": "layers = 把比其他块中同一层强得多的层拉低到上限。directions = 在每一层内，压平占主导的一两个方向（仅限普通的 lora_A / lora_B 文件）。both = 两者都做。"
+      },
+      "spike_limit": {
+        "tooltip": "尖峰要多强才会被软化。layers：该层在 28 个 block 上中位数的倍数。directions：该层第二强方向的倍数（表现正常的 LoRA 大约在 2）。越低 = 软化越多。"
+      },
+      "blocks_in": {
+        "tooltip": "来自其他节点的 28 block 曲线，例如 LC Anima LoRA Block Scan 的 blocks 输出。接入后会取代预设和柱状条。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "已应用编辑后 LoRA 的模型。"
+      },
+      "1": {
+        "tooltip": "编辑后的 LoRA，供 LC LoRA Save 使用。"
+      }
+    }
+  },
+  "LCKrea2LoRABlockScan": {
+    "description": "用固定的 seed 批次分别渲染：不带 LoRA、带 LoRA、以及逐个关闭每组 block，然后针对基础模型和完整 LoRA 给脸部锁定（同脸得分）和变化程度打分。用于找出在 LC Krea2 LoRA Editor 中需要调低的 block。",
+    "inputs": {
+      "model": {
+        "tooltip": "Krea 2 模型，不含 LoRA。"
+      },
+      "positive": {
+        "tooltip": "一个既显示人脸（用于 face lock）又包含场景（用于整图变化）的提示词。"
+      },
+      "lora_name": {
+        "tooltip": "要扫描的 LoRA,来自 models/loras。"
+      },
+      "groups": {
+        "tooltip": "要逐个关闭的 block 组，用逗号分隔。fusion = 28 个 block 之外的文本融合层。每个组会多出一行渲染。"
+      },
+      "off_value": {
+        "tooltip": "被测试的组 'off' 的含义。0 = 完全关闭。"
+      },
+      "images": {
+        "tooltip": "每行的 seed 数（一个批次）。8 能得到稳定的同脸得分；更少更快但噪声更大。"
+      },
+      "negative": {
+        "tooltip": "可选。不接线 = 空的（全零）负面，适用于 cfg 1。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "每组渲染一行:无 LoRA、完整 LoRA,然后逐个关闭每个 group。"
+      },
+      "1": {
+        "tooltip": "每行的分数及其含义。"
+      },
+      "2": {
+        "tooltip": "建议的 28 block 曲线。接入 LC Krea2 LoRA Editor 的 blocks（先转换为输入），或直接复制。"
+      }
+    }
+  },
+  "LCAnimaLoRABlockScan": {
+    "description": "用固定的 seed 批次分别渲染:不加 LoRA、加 LoRA,以及逐个关闭每个 block group,然后对比基础模型和完整 LoRA,给 face lock(同一角色,CCIP)和变化量打分。用于找出在 LC Anima LoRA Editor 中该调低的 block。CCIP 只需下载一次(约 150 MB)。",
+    "inputs": {
+      "model": {
+        "tooltip": "Anima 模型，不含 LoRA。"
+      },
+      "positive": {
+        "tooltip": "一个展示单个角色(用于 face lock)和场景的 prompt。"
+      },
+      "lora_name": {
+        "tooltip": "要扫描的 LoRA,来自 models/loras。"
+      },
+      "groups": {
+        "tooltip": "要逐个关闭的 block 组，逗号分隔。outside = LLM adapter 和最后一层。每个组会多出一行渲染。"
+      },
+      "off_value": {
+        "tooltip": "被测试的组 'off' 的含义。0 = 完全关闭。"
+      },
+      "images": {
+        "tooltip": "每行的 seed 数（一个批次）。8 能得到稳定的同脸得分；更少更快但噪声更大。"
+      },
+      "negative": {
+        "tooltip": "可选，但 cfg 高于 1 的 Anima 需要真正的负面提示词。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "每组渲染一行:无 LoRA、完整 LoRA,然后逐个关闭每个 group。"
+      },
+      "1": {
+        "tooltip": "每行的分数及其含义。"
+      },
+      "2": {
+        "tooltip": "建议的 28 个 block 曲线。接入 LC Anima LoRA Editor 的 blocks_in。"
+      }
+    }
+  },
+  "LCKrea2LoRAMerge": {
+    "description": "合并两到四个 Krea 2 LoRA，使用逐 block 的 A / B 曲线（sum 或 TIES），将结果应用到模型，并输出供 LC LoRA Save 使用。热力图显示 A 和 B 的占比以及合并结果。",
+    "inputs": {
+      "model": {
+        "tooltip": "Krea 2 模型。合并后的 LoRA 会应用到它上面，就像 LoRA 加载器一样。"
+      },
+      "lora_a": {
+        "tooltip": "LoRA A,来自 models/loras。"
+      },
+      "lora_b": {
+        "tooltip": "LoRA B，来自 models/loras。"
+      },
+      "mix": {
+        "tooltip": "整个合并只用一个滑块，就像普通的模型合并：0 = 仅 LoRA A，1 = 仅 LoRA B。在 0.5 时各柱按设定值应用；趋向 0 时 B 处处淡出，趋向 1 时 A 淡出。"
+      },
+      "method": {
+        "tooltip": "sum = LoRA 精确相加（快）。ties = 保留每个 LoRA 最强的改动，丢弃互相冲突的部分：适用于冲突的 LoRA，例如两种风格或两个角色。较慢（对每个完整层都处理）。"
+      },
+      "preset": {
+        "tooltip": "每个 block：0 = 只用 A，0.5 = 两者全强度，1 = 只用 B。拖动图表会切换到 Custom。"
+      },
+      "blocks": {
+        "tooltip": "28 个 block 的值，0 (A) 到 1 (B)。在节点上拖动柱状条。"
+      },
+      "ties_density": {
+        "tooltip": "仅限 ties：每个 LoRA 保留的变化占比（最强的部分）。越低 = 只有最重要的变化保留下来。"
+      },
+      "blocks_in": {
+        "tooltip": "来自其他节点的 28 个 block 曲线。接入后会取代预设和各柱。"
+      },
+      "lora_c": {
+        "tooltip": "可选的第三个 LoRA,在每个 block 中都使用 strength_c(不走曲线)。"
+      },
+      "lora_d": {
+        "tooltip": "可选的第四个 LoRA，在每个 block 都使用 strength_d（不走曲线）。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "已应用合并 LoRA 的模型。"
+      },
+      "1": {
+        "tooltip": "合并后的 LoRA，供 LC LoRA Save 使用。"
+      }
+    }
+  },
+  "LCAnimaLoRAMerge": {
+    "description": "合并两到四个 Anima LoRA，使用逐 block 的 A / B 曲线（sum 或 TIES），将结果应用到模型，并输出供 LC LoRA Save 使用。热力图显示 A 和 B 各自的占比以及合并结果。",
+    "inputs": {
+      "model": {
+        "tooltip": "Anima 模型。合并后的 LoRA 会应用到它上面，与 LoRA loader 相同。"
+      },
+      "lora_a": {
+        "tooltip": "LoRA A,来自 models/loras。"
+      },
+      "lora_b": {
+        "tooltip": "LoRA B，来自 models/loras。"
+      },
+      "mix": {
+        "tooltip": "整个合并只用一个滑块，就像普通的模型合并：0 = 仅 LoRA A，1 = 仅 LoRA B。在 0.5 时各柱按设定值应用；趋向 0 时 B 处处淡出，趋向 1 时 A 淡出。"
+      },
+      "method": {
+        "tooltip": "sum = LoRA 精确相加（快）。ties = 保留每个 LoRA 最强的改动，丢弃互相冲突的部分：适用于冲突的 LoRA，例如两种风格或两个角色。较慢（对每个完整层都处理）。"
+      },
+      "preset": {
+        "tooltip": "每个 block：0 = 只用 A，0.5 = 两者全强度，1 = 只用 B。拖动图表会切换到 Custom。"
+      },
+      "blocks": {
+        "tooltip": "28 个 block 的值，0 (A) 到 1 (B)。在节点上拖动柱状条。"
+      },
+      "ties_density": {
+        "tooltip": "仅限 ties：每个 LoRA 保留的变化占比（最强的部分）。越低 = 只有最重要的变化保留下来。"
+      },
+      "blocks_in": {
+        "tooltip": "来自其他节点的 28 个 block 曲线。接入后会取代预设和各柱。"
+      },
+      "lora_c": {
+        "tooltip": "可选的第三个 LoRA,在每个 block 中都使用 strength_c(不走曲线)。"
+      },
+      "lora_d": {
+        "tooltip": "可选的第四个 LoRA，在每个 block 都使用 strength_d（不走曲线）。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "已应用合并 LoRA 的模型。"
+      },
+      "1": {
+        "tooltip": "合并后的 LoRA，供 LC LoRA Save 使用。"
+      }
+    }
+  },
+  "LCAnimaBlockMergeAdvanced": {
+    "description": "Anima 合并，在 28 个 block 上使用可拖动的逐 block 比例曲线，另有滑块控制 block 之外的命名部分（x embedder、timestep embedder 和 norm、LLM adapter、final layer）。复用 ComfyUI 自带的 ModelMergeBlocks。Save 会写入 web/anima_block_presets/<name>.json。",
+    "inputs": {
+      "model1": {
+        "tooltip": "比例 0 一侧。比例为 0.0 的块/区域完全来自此 checkpoint。"
+      },
+      "model2": {
+        "tooltip": "比例 1 一侧。比例为 1.0 的 block/区域完全来自此 checkpoint。"
+      },
+      "preset": {
+        "tooltip": "内置：50_50、model2_early（model2 的 block 0-6）、model2_look（block 7-20，即 Anima 微调模型的外观所在）、model2_late（21-27），以及你保存的所有预设。加载其中一个会设置曲线和命名滑块。Custom 保留你拖动的结果。"
+      },
+      "edit_mode": {
+        "tooltip": "smooth = 拖动一个块并混合相邻块。spike = 只移动一个块。"
+      },
+      "smooth_radius": {
+        "tooltip": "smooth 模式的邻域窗口（以块为单位，0 = 近似 spike）。"
+      },
+      "blocks_curve": {
+        "tooltip": "28 个比例的逗号列表（blocks.0. - blocks.27.）。0 = 全部用 model1，1 = 全部用 model2。preset 为 Custom 时以此为准。"
+      },
+      "x_embedder": {
+        "tooltip": "x_embedder。— 在 block 0 之前，把图像 latent 转成 token。"
+      },
+      "t_embedder": {
+        "tooltip": "t_embedder. — timestep embedding。"
+      },
+      "t_embedding_norm": {
+        "tooltip": "t_embedding_norm。— timestep embedding 上的 norm。"
+      },
+      "llm_adapter": {
+        "tooltip": "llm_adapter. — 把 Qwen 文本编码器的输出映射进模型(决定 prompt 如何被读取)。"
+      },
+      "final_layer": {
+        "tooltip": "final_layer。— 输出层，在 block 27 之后。"
+      },
+      "save_name": {
+        "tooltip": "web/anima_block_presets/ 下的文件名（无扩展名）。"
+      },
+      "save_curve": {
+        "tooltip": "运行时，把 save_name.json 写入 web/anima_block_presets/。"
+      }
+    }
+  },
+  "LCMOSSBlockMergeAdvanced": {
+    "description": "MOSS Image 合并，提供贯穿 42 层的可拖动逐层比例曲线，另有滑块控制这些层之外的命名部分（picture in、prompt in、timestep、modulation、final layer）。复用 ComfyUI 自带的 ModelMergeBlocks。Save 会写入 web/moss_block_presets/<name>.json。",
+    "inputs": {
+      "model1": {
+        "tooltip": "比例 0 一侧。比例为 0.0 的块/区域完全来自此 checkpoint。"
+      },
+      "model2": {
+        "tooltip": "比例 1 一侧。比例为 1.0 的 block/区域完全来自此 checkpoint。"
+      },
+      "preset": {
+        "tooltip": "内置：50_50、model2_early（来自 model2 的第 0-13 层）、model2_look（14-27）、model2_late（28-41：SFT + Base 测试，这些层承载了大部分姿势和脸部），以及你保存的任何预设。加载其中之一会设置曲线和已命名的滑块。Custom 保留你拖动的结果。"
+      },
+      "edit_mode": {
+        "tooltip": "smooth = 拖动一个块并混合相邻块。spike = 只移动一个块。"
+      },
+      "smooth_radius": {
+        "tooltip": "smooth 模式的邻域窗口（以块为单位，0 = 近似 spike）。"
+      },
+      "blocks_curve": {
+        "tooltip": "42 个比例的逗号列表（layers.0. - layers.41.）。0 = model1，1 = model2。拖动图表来设置。"
+      },
+      "image_in": {
+        "tooltip": "video_embedder。在 layer 0 之前，把图像 latent 转成 token。"
+      },
+      "text_in": {
+        "tooltip": "text_embedder。把 Qwen3.5 text encoder 的输出映射进模型（提示词的解读方式）。"
+      },
+      "timestep": {
+        "tooltip": "time_embedding。时间步（画面有多嘈杂）。"
+      },
+      "modulation": {
+        "tooltip": "shared_block_modulation。所有层共用的一张调制表：每一层在每一步的作用强度。"
+      },
+      "head_modulation": {
+        "tooltip": "video_head_modulation。输出头的调制。"
+      },
+      "final_norm": {
+        "tooltip": "final_norm_video。输出层之前的 Norm。"
+      },
+      "final_layer": {
+        "tooltip": "final_linear_video。输出层，位于第 41 层之后。"
+      },
+      "save_name": {
+        "tooltip": "web/moss_block_presets/ 下的文件名（不带扩展名）。"
+      },
+      "save_curve": {
+        "tooltip": "运行时，将 save_name.json 写入 web/moss_block_presets/。"
+      }
+    }
+  },
+  "LCLoRABake": {
+    "description": "将最多 4 个 LoRA 烘焙进模型文件并另存为新模型，可选逐 block 曲线。支持 ComfyUI 能读取的所有 LoRA 格式。配方会写入文件中。",
+    "inputs": {
+      "model_name": {
+        "tooltip": "要烘焙进去的 bf16 / fp16 模型。之后用 LC Model Quantize 对结果做量化。"
+      },
+      "lora_1": {
+        "tooltip": "为这个模型系列制作的 LoRA。"
+      },
+      "lora_2": {
+        "tooltip": "为这个模型系列制作的 LoRA。"
+      },
+      "lora_3": {
+        "tooltip": "为这个模型系列制作的 LoRA。"
+      },
+      "lora_4": {
+        "tooltip": "为这个模型系列制作的 LoRA。"
+      },
+      "blocks_curve": {
+        "tooltip": "可选：每个 block 一个数字（逗号分隔），乘以该 block 内的强度。0 表示不处理该 block。留空 = 处处为 1。与 LoRA Editor 和 Block Scan 使用相同的列表。"
+      },
+      "outside_blocks": {
+        "tooltip": "编号 block 之外的层（embedders、文本侧、final layer）的倍率。"
+      },
+      "filename": {
+        "tooltip": "保存在源模型旁边，自动加上 .safetensors。"
+      },
+      "device": {
+        "tooltip": "cpu：不占用 VRAM，约一分钟。gpu：更快，需要少量 VRAM。"
+      }
+    }
+  },
+  "LCModelMergeAny": {
+    "description": "合并两个不同精度存储的模型(bf16 与 fp8、int8、nvfp4 或 GGUF,顺序不限)。量化的那个先解码为全精度,以全精度模型为基础,所以结果保持全精度。用 LC Diffusion Model Save 保存。",
+    "inputs": {
+      "model1": {
+        "tooltip": "任意精度：bf16、fp16、fp32、fp8、int8、nvfp4 或 GGUF。"
+      },
+      "model2": {
+        "tooltip": "与 model1 架构相同，任意精度。"
+      },
+      "ratio": {
+        "tooltip": "0 = 全是 model1，1 = 全是 model2，0.5 = 各一半。"
+      },
+      "block_ratios": {
+        "tooltip": "可选，针对带编号 block 的模型（Krea 2 有 28 个）的逐 block 比例：逗号分隔的列表，从 block 0 开始，刻度与 ratio 相同。block 之外的层使用 ratio。留空 = 所有地方都用 ratio。"
+      }
+    }
+  },
+  "LCLoRAExtract": {
+    "description": "根据微调模型与其基础模型之间的差异生成 LoRA（例如 Krealism 减去 Krea 2 Turbo）。两侧可使用任意精度。未改变的层不会写入文件。",
+    "inputs": {
+      "finetuned": {
+        "tooltip": "微调或合并模型（例如 Krealism）。任意精度。"
+      },
+      "base": {
+        "tooltip": "构建所基于的模型（如 Krea 2 Turbo）。任意精度。"
+      },
+      "parts": {
+        "tooltip": "all layers = 全部差异。blocks only = 仅编号的 block（在 Krea 2 上不包括 text fusion 和 embedding 层；适用于为 Krea 2 Raw 准备的 LoRA）。custom blocks = 使用下面的列表。"
+      },
+      "blocks": {
+        "tooltip": "与自定义 block 配合使用：范围和单个数字，例如 14-27 或 4-9, 16, 20-22。"
+      },
+      "rank": {
+        "tooltip": "任何层可使用的最高 rank。需求更低的层会保持更小。"
+      },
+      "keep": {
+        "tooltip": "保留每层变化的多少比例（0.90 = 90%）。越高 = 越接近 finetune，文件越大。Krealism：rank 256 下 0.90 与完整模型相当。"
+      },
+      "min_change": {
+        "tooltip": "变化小于此值(相对于该层)的层视为未改变,并被排除。0.001 可跳过 bf16 舍入噪声。"
+      },
+      "filename": {
+        "tooltip": "保存在 models/loras 下。重名时会加编号而不是覆盖。"
+      },
+      "enabled": {
+        "tooltip": "Off = 完全跳过保存（不写入文件），无需真正旁路节点。可转换为输入，由图中其他位置的开关控制是否保存。"
+      },
+      "embed_workflow": {
+        "tooltip": "把提示词和工作流 JSON 写入保存文件的元数据。如果不想附带你确切的节点图，分享/发布 checkpoint 前请关闭。"
+      },
+      "metadata": {
+        "tooltip": "keep all = 此次保存通常写入的全部内容（开启 embed_workflow 时包含你的整个节点图）。necessary only = 仅保留加载所需的内容（如有量化设置）加上架构和触发词：不含工作流、训练细节、标题或编辑备注。分享文件前请使用。"
+      },
+      "applied_loras": {
+        "tooltip": "included = 按实际运行时的样子读取每一层，应用 MODEL 连线上的 LoRA、合并和 patch（LC LoRA Loader、LoRA Editor...）。可把 'Krealism + 3 LoRAs' 提取为一个 LoRA。file weights only = 仅使用模型文件自身的权重（旧行为）。"
+      }
+    }
+  },
+  "LCScoreboard": {
+    "description": "A / B 测试的对战记分板。点 #1 Win、Tie 或 #2 Win；一方获胜即另一方落败。显示谁领先以及领先多少。分数随工作流一起保存。",
+    "inputs": {
+      "wins_1": {
+        "tooltip": "#1 的胜场(= #2 的负场)。用按钮;在此输入可纠正错误。"
+      },
+      "ties": {
+        "tooltip": "平局。用按钮;在此输入可纠正错误。"
+      },
+      "wins_2": {
+        "tooltip": "#2 的胜场（= #1 的败场）。请用按钮；输入错误时可在此修正。"
+      }
+    }
+  },
+  "LCModelQuantize": {
+    "description": "保存 diffusion model 的较小副本：fp8、mxfp8、nvfp4、int8 或 int4（ComfyUI 原生文件），或 GGUF Q8_0 到 Q2_K。来源可以是接入的 MODEL（已烘焙 LoRA 和合并），也可以直接来自文件，逐层处理。Embedder、norm 和最后一层保持全精度。接入的模型不会被改动。",
+    "inputs": {
+      "source": {
+        "tooltip": "权重来自哪里。'(use the model input)' 取接入的 MODEL,包含其上的 LoRA 和合并(在 64 GB RAM 下 12-14B 以内都没问题)。文件是逐层读取的,所以任何大小都行。请选 bf16 / fp16 文件,不要选 fp8。"
+      },
+      "format": {
+        "tooltip": "fp8:体积减半,近乎无损,在 40 / 50 系列上很快。mxfp8、nvfp4:仅限 50 系列。int8 (convrot):体积减半,30 系列也能运行。int4:四分之一。GGUF 需要 ComfyUI-GGUF 才能加载:Q8_0 近乎无损,Q6_K / Q5_K 非常接近,Q4_K_M 是小显存卡的常用选择,Q3 / Q2 用于其他都放不下时。_M 会让首尾两个 block 使用更高的类型。"
+      },
+      "protect_edges": {
+        "tooltip": "第一个和最后一个 transformer block 也保持全精度（体积稍大，更接近原始模型）。"
+      },
+      "filename": {
+        "tooltip": "保存到 models/diffusion_models。留空 = 源文件名加格式。可以用子文件夹：'Krea2/Krealism'。已有文件绝不会被覆盖。"
+      },
+      "model": {
+        "tooltip": "当 source 为 '(use the model input)' 时使用。"
+      }
+    }
+  },
+  "LCVAEMerge": {
+    "description": "合并同一系列两个 VAE 的解码器，按区域从粗略形状到精细纹理逐级合并。编码器保持 vae_a 的，所以合并后的 VAE 仍适配为 vae_a 制作的模型。",
+    "inputs": {
+      "vae_a": {
+        "tooltip": "基底模型。它的 encoder 始终保留，因此结果仍能匹配基于它训练的模型。"
+      },
+      "vae_b": {
+        "tooltip": "同一家族的另一个 VAE（例如同一基底的 decoder finetune）。"
+      },
+      "start": {
+        "tooltip": "解码器的输入和中段：整体色调和颜色。0 = 全部来自基础（vae_a），1 = 全部来自 vae_b。"
+      },
+      "coarse": {
+        "tooltip": "第一个上采样阶段:大的形状。"
+      },
+      "medium": {
+        "tooltip": "第二个上采样阶段。"
+      },
+      "fine": {
+        "tooltip": "第三个上采样阶段。"
+      },
+      "finest": {
+        "tooltip": "最后的上采样阶段和输出层:精细纹理、锐度和最后的色彩映射。"
+      }
+    }
+  },
+  "LCVAESave": {
+    "description": "将 VAE（例如合并后的）以 fp32、bf16 或 fp16 保存到 models/vae。",
+    "inputs": {
+      "filename": {
+        "tooltip": "保存到 models/vae,可直接用 Load VAE 加载。可以用子文件夹。已有的文件不会被覆盖。"
+      },
+      "precision": {
+        "tooltip": "fp32 保留每一位（对 VAE 最安全）。bf16 / fp16 体积减半；bf16 在平滑渐变中可能出现轻微色带。"
+      },
+      "enabled": {
+        "tooltip": "Off 则跳过保存。"
+      }
+    }
+  },
+  "LCVAECompare": {
+    "description": "用最多六个 VAE 解码同一批 latent，并并排展示，附带 1:1 细节裁切、锐度数值，以及每个与 vae_1 的差距。",
+    "inputs": {
+      "samples": {
+        "tooltip": "来自真实渲染的 latent（KSampler 输出）。每个 VAE 都解码这批相同的 latent，这才是你实际看到的。"
+      },
+      "vae_1": {
+        "tooltip": "基准：其他的都以它为参照来衡量。"
+      },
+      "labels": {
+        "tooltip": "列的名称，用逗号分隔。为空 = vae 1, vae 2, ..."
+      },
+      "crop_size": {
+        "tooltip": "从每次解码的中心截取 1:1 裁剪，在下方放大显示，用于判断纹理。"
+      }
+    }
+  },
+  "LCStripMetadata": {
+    "description": "清除你已保存模型中的元数据：内嵌的工作流、训练详情、标题。权重按字节原样复制（不会加载或重新保存），所以加载效果与之前完全一致。规则与保存节点的元数据开关相同。",
+    "inputs": {
+      "file": {
+        "tooltip": "已保存的模型、checkpoint、LoRA、VAE 或文本编码器（.safetensors）。"
+      },
+      "mode": {
+        "tooltip": "necessary only = 保留加载所需的内容以及架构和触发词（与保存节点的开关相同）。everything = 空的 header（其他工具加载所需的量化设置仍会保留）。"
+      },
+      "save_as": {
+        "tooltip": "new file = 在原文件旁写入 name_clean.safetensors，原文件不动。replace = 清理后的副本完整写入后，用它替换原文件。"
+      },
+      "enabled": {
+        "tooltip": "Off 则跳过（不写入任何内容）。"
+      }
+    }
+  },
+  "LCModelFingerprint": {
+    "description": "这个 checkpoint 里有没有某个模型或 LoRA？直接比较权重本身，所以无需 metadata 也能用：同一模型的其他精度、它的 finetune、block merge，或合并进去的 LoRA（并给出大致 strength）。",
+    "inputs": {
+      "model": {
+        "tooltip": "你要检查的 checkpoint。用你常用的加载器加载（任意精度，GGUF 也可以）。"
+      },
+      "reference": {
+        "tooltip": "你认为它来自哪个模型。用于对比，也是 LoRA 检查的基础。"
+      },
+      "lora_name": {
+        "tooltip": "你认为已被合并进 checkpoint 的 LoRA。需要提供参考：即该 LoRA 所针对的基础模型。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "用通俗的话说明发现了什么，并附上依据的数字。"
+      },
+      "1": {
+        "tooltip": "每个块的相似度（绿 = 权重相同，黄 = 接近，红 = 不同）。有 LoRA 时：显示它在每个块上的强度。"
+      }
+    }
+  },
+  "LCFingerprintLibrary": {
+    "description": "构建指纹库：遍历你的文件夹，为每个模型和 LoRA 保存一份小指纹（约 1 MB）及其所属系列。入库之后，原文件可以删除。LC Fingerprint Identify 用这个库来判断新文件由什么组成。",
+    "inputs": {
+      "folders": {
+        "tooltip": "要生成指纹的文件夹（或单个文件），每行一个：完整路径、相对 ComfyUI 文件夹的路径（models/loras），或模型文件夹名（loras、diffusion_models、checkpoints），表示 ComfyUI 读取该类型的所有位置。会检查其中每个 .safetensors：模型和 LoRA 会存入库中，VAE / 文本编码器 / 放大模型会被跳过。"
+      },
+      "recursive": {
+        "tooltip": "也包括其中的文件夹。"
+      },
+      "skip_known": {
+        "tooltip": "跳过库中已有的文件（大小和日期相同），这样重新运行只会添加新的内容。"
+      },
+      "precision": {
+        "tooltip": "仅限模型：不要包含 int8、mxfp8、nvfp4 及其他更低的量化版本。它们与对应的 bf16 / fp8 文件是同一个模型，只是做了舍入，所以没有额外价值。"
+      }
+    }
+  },
+  "LCFingerprintIdentify": {
+    "description": "这个文件是用什么做的?对于模型:给出 fingerprint 库中的配方,逐 block 列出(合并了哪些模型、比例多少、加入了哪些 LoRA)、把握程度,以及热力图。LoRA 会与库里的 LoRA 比对(改过名的副本也能识别)。它只能指出库里有的东西。",
+    "inputs": {
+      "files": {
+        "tooltip": "要识别的文件或文件夹，每行一个：完整路径、相对于 ComfyUI 文件夹的路径，或模型文件夹名，如 diffusion_models（可以填下载文件夹）。"
+      },
+      "add_to_library": {
+        "tooltip": "事后也把每一项存入库中，这样下次就认得它了。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "每个文件由什么组成，用文字描述。"
+      },
+      "1": {
+        "tooltip": "逐 block 显示:它来自库中的哪个模型(越亮 = 占比越大)、LoRA,以及库里没有的部分。每个模型一张图。"
+      }
+    }
+  }
+}
