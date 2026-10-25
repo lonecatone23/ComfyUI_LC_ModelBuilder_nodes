@@ -1,0 +1,814 @@
+{
+  "LCKrea2BlockMergeAdvanced": {
+    "description": "28개의 균일한 MMDiT 블록에 걸친 드래그 가능한 블록별 비율 곡선과, 이름 붙은 10개 영역(first/tmlp/txtmlp/tproj, txtfusion.* x5, last)의 개별 슬라이더를 갖춘 Krea2 체크포인트 병합입니다. ComfyUI 자체의 ModelMergeBlocks 패치 방식(get_key_patches + add_patches, 최장 접두사 일치)을 그대로 쓰며 별도의 텐서 연산은 없습니다. 저장하면 web/krea2_block_presets/<name>.json에 (블록 + 이름 붙은 슬라이더 함께) 기록됩니다.",
+    "inputs": {
+      "model1": {
+        "tooltip": "비율 0 쪽. 0.0인 블록/영역은 전적으로 이 체크포인트에서 가져옵니다."
+      },
+      "model2": {
+        "tooltip": "비율 1 쪽. 1.0인 블록/영역은 전적으로 이 체크포인트에서 가져옵니다."
+      },
+      "preset": {
+        "tooltip": "번들 프리셋 9개(50_50, face_favor, detail_focus, style_favor, sine_wave, resonance_blocks, even_blend, core_focus, heavy_transplant_anchored)와 직접 저장한 것들. 하나를 로드하면 28블록 곡선과 이름 붙은 10개 슬라이더가 모두 설정됩니다. Custom은 현재 드래그/입력한 값을 그대로 유지합니다."
+      },
+      "edit_mode": {
+        "tooltip": "smooth = 한 블록을 드래그하면 이웃 블록과 섞임. spike = 한 블록만 움직임."
+      },
+      "smooth_radius": {
+        "tooltip": "smooth 모드의 이웃 창(블록 수). 0 = spike에 가까움."
+      },
+      "blocks_curve": {
+        "tooltip": "28개 비율의 쉼표 목록(blocks.0. - blocks.27.). 0 = 전부 model1, 1 = 전부 model2. preset이 Custom일 때의 기준 값."
+      },
+      "first": {
+        "tooltip": "first. — block 0 전의 가장 앞쪽 입력/임베딩 weight."
+      },
+      "tmlp": {
+        "tooltip": "tmlp. — timestep-embedding MLP (timestep conditioning)."
+      },
+      "txtmlp": {
+        "tooltip": "txtmlp. — text-embedding MLP (text conditioning)."
+      },
+      "tproj": {
+        "tooltip": "tproj. — 타임스텝 투영 레이어."
+      },
+      "txtfusion_layer0": {
+        "tooltip": "txtfusion.layerwise_blocks.0. — 첫 번째 텍스트/이미지 융합 블록."
+      },
+      "txtfusion_layer1": {
+        "tooltip": "txtfusion.layerwise_blocks.1. — 두 번째 텍스트/이미지 융합 블록."
+      },
+      "txtfusion_projector": {
+        "tooltip": "txtfusion.projector. — 융합된 텍스트 특징을 메인 스트림에 투영합니다."
+      },
+      "txtfusion_refiner0": {
+        "tooltip": "txtfusion.refiner_blocks.0. — 첫 번째 융합 refiner 블록."
+      },
+      "txtfusion_refiner1": {
+        "tooltip": "txtfusion.refiner_blocks.1. — 두 번째 fusion refiner 블록."
+      },
+      "last": {
+        "tooltip": "last. — 블록 27 뒤의 최종 출력 레이어."
+      },
+      "save_name": {
+        "tooltip": "web/krea2_block_presets/ 아래의 파일 이름(확장자 없음)."
+      },
+      "save_curve": {
+        "tooltip": "실행 시 save_name.json을 web/krea2_block_presets/에 기록합니다."
+      }
+    }
+  },
+  "LCKrea2SemanticVectorTuner": {
+    "description": "Krea2 체크포인트 하나의 가중치 중 특정 영역을 키우거나 줄입니다. 병합이 아닙니다. Arthemy SDXL Suite의 튜닝 방식(기존 패치를 bake하고, 스케일한 뒤, ModelPatcher.add_patches로 delta를 다시 패치)을 그대로 쓰되, SDXL의 UNet 구조 대신 Krea2의 실제 블록/영역 접두사를 대상으로 합니다. 3개의 zone 슬라이더가 균일한 28개 블록을 담당하며(더 세밀하게 조절하려면 블록별 override 문자열 사용 가능), 구조적으로 구별되는 10개의 명명된 영역에는 각각 슬라이더가 있습니다.",
+    "inputs": {
+      "model": {
+        "tooltip": "영역별로 증폭/감쇠할 단일 체크포인트입니다. 병합이 아니라서 두 번째 모델이 없습니다."
+      },
+      "mode": {
+        "tooltip": "Soft Value는 슬라이더를 완화해 0-2가 안전하게 유지됩니다(1.0 초과 값은 약 1.0-1.13x에 수렴). Real Value는 각 슬라이더를 그대로 배수로 적용합니다."
+      },
+      "base_scale": {
+        "tooltip": "28개 블록이나 이름 붙은 10개 영역에 속하지 않는 모든 가중치에 대한 대체 배율."
+      },
+      "low_blocks": {
+        "tooltip": "blocks.0. - blocks.8.(저 구간)을 조절합니다."
+      },
+      "mid_blocks": {
+        "tooltip": "blocks.9. - blocks.17.(중간 zone)을 조절."
+      },
+      "high_blocks": {
+        "tooltip": "blocks.18. - blocks.27. (high zone)의 배율."
+      },
+      "blocks_override": {
+        "tooltip": "블록당 하나씩, 정확히 28개 배율의 선택적 쉼표 목록입니다. 있으면 28개 블록에 대해 low_blocks/mid_blocks/high_blocks를 덮어씁니다. 아래의 이름 붙은 영역은 영향을 받지 않으며, 항상 자체 슬라이더에서 값을 가져옵니다."
+      },
+      "first": {
+        "tooltip": "first. — block 0 전의 가장 앞쪽 입력/임베딩 weight."
+      },
+      "tmlp": {
+        "tooltip": "tmlp. — timestep-embedding MLP (timestep conditioning)."
+      },
+      "txtmlp": {
+        "tooltip": "txtmlp. — text-embedding MLP (text conditioning)."
+      },
+      "tproj": {
+        "tooltip": "tproj. — 타임스텝 투영 레이어."
+      },
+      "txtfusion_layer0": {
+        "tooltip": "txtfusion.layerwise_blocks.0. — 첫 번째 텍스트/이미지 융합 블록."
+      },
+      "txtfusion_layer1": {
+        "tooltip": "txtfusion.layerwise_blocks.1. — 두 번째 텍스트/이미지 융합 블록."
+      },
+      "txtfusion_projector": {
+        "tooltip": "txtfusion.projector. — 융합된 텍스트 특징을 메인 스트림에 투영합니다."
+      },
+      "txtfusion_refiner0": {
+        "tooltip": "txtfusion.refiner_blocks.0. — 첫 번째 융합 refiner 블록."
+      },
+      "txtfusion_refiner1": {
+        "tooltip": "txtfusion.refiner_blocks.1. — 두 번째 fusion refiner 블록."
+      },
+      "last": {
+        "tooltip": "last. — 블록 27 뒤의 최종 출력 레이어."
+      }
+    }
+  },
+  "LCCheckpointSave": {
+    "description": "올인원 체크포인트(model + clip + vae, 모두 필수)를 저장합니다. ComfyUI 코어의 comfy.sd.save_checkpoint()와 modelspec 메타데이터 감지를 그대로 사용하므로, 코어의 Save Checkpoint 노드가 만드는 것과 같은 파일 형식입니다. enabled 토글(저장 노드는 출력이 없어 통과시킬 수 없으므로, 노드를 바이패스하지 않고 저장만 건너뜀)과 저장별 embed_workflow 토글을 추가하며, 전역 --disable-metadata 실행 플래그와는 별개입니다. diffusion model만 담은 파일은 LC Diffusion Model Save를 사용하세요.",
+    "inputs": {
+      "model": {
+        "tooltip": "저장할 diffusion 모델."
+      },
+      "clip": {
+        "tooltip": "필수 -- checkpoint는 올인원 파일입니다."
+      },
+      "vae": {
+        "tooltip": "필수 -- checkpoint는 올인원 파일입니다."
+      },
+      "filename_prefix": {
+        "tooltip": "output 디렉터리 아래의 하위 폴더/접두사."
+      },
+      "enabled": {
+        "tooltip": "Off = 노드를 물리적으로 바이패스하지 않고 저장을 완전히 건너뜁니다(파일이 쓰이지 않음). 입력으로 변환하면 그래프의 다른 곳에 있는 스위치로 저장을 제어할 수 있습니다."
+      },
+      "embed_workflow": {
+        "tooltip": "저장되는 파일의 메타데이터에 프롬프트와 워크플로 JSON을 포함합니다. 정확한 노드 그래프가 첨부되는 것을 원하지 않으면 체크포인트를 공유/게시하기 전에 끄세요."
+      },
+      "metadata": {
+        "tooltip": "keep all = 이 저장이 평소 기록하는 모든 것(embed_workflow가 켜져 있으면 노드 그래프 전체 포함). necessary only = 로딩에 필요한 것(있다면 양자화 설정)과 아키텍처, 트리거 단어만: 워크플로, 학습 정보, 제목, 편집 메모는 없음. 파일을 공유하기 전에 사용하세요."
+      }
+    }
+  },
+  "LCDiffusionModelSave": {
+    "description": "diffusion model만 저장합니다 -- clip, vae 없음. 방식과 메타데이터는 LC Checkpoint Save와 같고(comfy.sd.save_checkpoint(), core의 modelspec 감지), 올인원 파일의 text encoder / VAE 부분만 빠집니다. 기본 Load Diffusion Model 노드로 문제없이 다시 불러올 수 있습니다 -- 이 저장 경로가 붙이는 model.diffusion_model. 접두사는 자동으로 제거됩니다. enabled와 embed_workflow 토글은 LC Checkpoint Save와 같습니다.",
+    "inputs": {
+      "model": {
+        "tooltip": "저장할 diffusion 모델. clip/vae 없음 -- 모델만."
+      },
+      "filename_prefix": {
+        "tooltip": "output 디렉터리 아래의 하위 폴더/접두사."
+      },
+      "enabled": {
+        "tooltip": "Off = 노드를 물리적으로 바이패스하지 않고 저장을 완전히 건너뜁니다(파일이 쓰이지 않음). 입력으로 변환하면 그래프의 다른 곳에 있는 스위치로 저장을 제어할 수 있습니다."
+      },
+      "embed_workflow": {
+        "tooltip": "저장되는 파일의 메타데이터에 프롬프트와 워크플로 JSON을 포함합니다. 정확한 노드 그래프가 첨부되는 것을 원하지 않으면 체크포인트를 공유/게시하기 전에 끄세요."
+      },
+      "metadata": {
+        "tooltip": "keep all = 이 저장이 평소 기록하는 모든 것(embed_workflow가 켜져 있으면 노드 그래프 전체 포함). necessary only = 로딩에 필요한 것(있다면 양자화 설정)과 아키텍처, 트리거 단어만: 워크플로, 학습 정보, 제목, 편집 메모는 없음. 파일을 공유하기 전에 사용하세요."
+      }
+    }
+  },
+  "LCFaceVarietyScorer": {
+    "description": "동일 얼굴 테스트입니다. 모든 이미지에서 메인 얼굴을 찾아 ArcFace로 서로 모두 비교한 뒤 평균을 냅니다. score 0.0 - 1.0, 낮을수록 다양합니다. crowd_score는 각 이미지 안의 얼굴끼리 비교하며(단체 사진), 얼굴이 2개 이상인 이미지가 없으면 -1입니다. InsightFace buffalo_l을 사용합니다(한 번 자동 다운로드, 비상업적 연구 라이선스).",
+    "inputs": {
+      "images": {
+        "tooltip": "테스트할 생성물 배치입니다. 같은 prompt에 다른 seed가 가장 좋습니다. 8장 이상."
+      },
+      "same_threshold": {
+        "tooltip": "얼굴 두 개가 이 값을 넘으면 same_pct에서 '동일 인물일 수 있음'으로 셉니다."
+      },
+      "min_face_px": {
+        "tooltip": "이보다 좁은 검출된 얼굴은 무시합니다(배경 인물, 반사)."
+      },
+      "device": {
+        "tooltip": "cpu는 모든 설치에서 작동하며 일반 테스트에는 몇 초면 됩니다. auto는 CUDA를 먼저 시도하고 안 되면 CPU로 폴백합니다."
+      },
+      "face_model": {
+        "tooltip": "photo = 사실적인 모델용으로, 주 얼굴에 ArcFace를 사용. anime = 애니메이션 및 일러스트 모델(Anima, Illustrious, Pony)용으로, 각 이미지의 주 애니메 얼굴에 CCIP를 사용: 사진용 얼굴 모델은 애니메 얼굴에서 빗나갑니다. 모델은 한 번 다운로드됩니다(약 200 MB)."
+      }
+    }
+  },
+  "LCKrea2LoRAEditor": {
+    "description": "블록별, attention / MLP, spike 편집이 가능한 Krea 2 LoRA를 불러와 모델에 적용하고, LC LoRA Save용으로 편집된 LoRA를 출력합니다. 히트맵은 각 레이어의 편집 전(윤곽선)과 후(채움) 강도를 보여줍니다.",
+    "inputs": {
+      "model": {
+        "tooltip": "Krea 2 모델. LoRA 로더처럼 편집된 LoRA가 적용됩니다."
+      },
+      "lora_name": {
+        "tooltip": "편집할 LoRA, models/loras에서."
+      },
+      "strength": {
+        "tooltip": "LoRA 전체 강도로, LoRA 로더와 같습니다. 저장되는 LoRA에 반영됩니다."
+      },
+      "preset": {
+        "tooltip": "Full = LoRA 그대로. 각 블록 그룹 프리셋은 해당 블록을 0.3으로 낮춥니다. face lock은 LoRA마다 다른 블록에 있으므로(Lip Bite: 후반 얼굴 블록 16-21, Amateur V4: 얼굴 블록 4-9), 고정 seed 배치로 각각 시험해 얼굴이 풀리는 것을 고르세요. Tame whole image = 블록 4-15를 0.7로 설정하며, spike_soften directions와 함께 쓰면 Lip Bite가 이미지 전체를 바꾸는 것이 멈췄습니다. 그래프를 드래그하면 Custom으로 전환됩니다."
+      },
+      "blocks": {
+        "tooltip": "블록 배율 28개, 0에서 2(1 = 변화 없음). 노드의 막대를 드래그하세요."
+      },
+      "attention": {
+        "tooltip": "모든 블록의 attention 레이어(q, k, v, o, gate) 배율입니다."
+      },
+      "mlp": {
+        "tooltip": "모든 블록의 MLP 레이어(gate, up, down)에 대한 배수. Krea 2 LoRA 가중치의 대부분은 보통 여기에 있습니다."
+      },
+      "outside_blocks": {
+        "tooltip": "28개 블록 밖의 레이어(text fusion, first, last)에 대한 배수(LoRA에 있는 경우). 히트맵 노트에 개수가 표시됩니다."
+      },
+      "spike_soften": {
+        "tooltip": "layers = 다른 블록의 같은 레이어보다 훨씬 강한 레이어를 한계까지 낮춥니다. directions = 각 레이어 안에서 지배적인 한두 방향을 평탄화합니다(일반 lora_A / lora_B 파일만). both = 둘 다."
+      },
+      "spike_limit": {
+        "tooltip": "스파이크가 어느 정도 강해야 완화되는지. layers: 28개 블록에 걸친 해당 레이어 중앙값의 배수. directions: 해당 레이어에서 두 번째로 강한 방향의 배수(잘 동작하는 LoRA는 약 2). 낮을수록 더 많이 완화됩니다."
+      },
+      "blocks_in": {
+        "tooltip": "다른 노드에서 온 28블록 곡선입니다. 예: LC Krea2 LoRA Block Scan의 blocks 출력. 연결하면 프리셋과 막대를 대체합니다."
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "편집된 LoRA가 적용된 모델."
+      },
+      "1": {
+        "tooltip": "편집된 LoRA로, LC LoRA Save용."
+      }
+    }
+  },
+  "LCLoRASave": {
+    "description": "편집한 LoRA를 모든 편집이 적용된 표준 lora_A / lora_B safetensors 파일로 저장하므로, 어떤 LoRA 로더에서든 strength 1.0으로 불러옵니다. 편집 설정은 메타데이터에 저장됩니다.",
+    "inputs": {
+      "lora": {
+        "tooltip": "LC LoRA Editor 또는 LoRA Merge(Krea 2 또는 Anima)에서 만든 편집/병합 LoRA."
+      },
+      "filename": {
+        "tooltip": "models/loras 아래에 저장됩니다. %source% = 원본 LoRA의 이름. 파일이 이미 있으면 숫자가 붙습니다."
+      },
+      "rank": {
+        "tooltip": "0 = 각 레이어의 rank 유지. 다른 숫자는 모든 레이어를 그 rank로 다시 맞춥니다(파일이 작아지고 가장 강한 방향을 유지)."
+      },
+      "enabled": {
+        "tooltip": "Off = 노드를 물리적으로 바이패스하지 않고 저장을 완전히 건너뜁니다(파일이 쓰이지 않음). 입력으로 변환하면 그래프의 다른 곳에 있는 스위치로 저장을 제어할 수 있습니다."
+      },
+      "embed_workflow": {
+        "tooltip": "저장되는 파일의 메타데이터에 프롬프트와 워크플로 JSON을 포함합니다. 정확한 노드 그래프가 첨부되는 것을 원하지 않으면 체크포인트를 공유/게시하기 전에 끄세요."
+      },
+      "metadata": {
+        "tooltip": "keep all = 이 저장이 평소 기록하는 모든 것(embed_workflow가 켜져 있으면 노드 그래프 전체 포함). necessary only = 로딩에 필요한 것(있다면 양자화 설정)과 아키텍처, 트리거 단어만: 워크플로, 학습 정보, 제목, 편집 메모는 없음. 파일을 공유하기 전에 사용하세요."
+      }
+    }
+  },
+  "LCAnimaLoRAEditor": {
+    "description": "블록별, attention / MLP, spike 편집이 가능한 Anima LoRA를 로드하고, 모델에 적용하며, 편집된 LoRA를 LC LoRA Save용으로 출력합니다. 히트맵은 편집 전후의 각 레이어 강도를 보여 줍니다.",
+    "inputs": {
+      "model": {
+        "tooltip": "Anima 모델. 편집된 LoRA가 LoRA 로더처럼 여기에 적용됩니다."
+      },
+      "lora_name": {
+        "tooltip": "편집할 LoRA, models/loras에서."
+      },
+      "strength": {
+        "tooltip": "LoRA 전체 강도로, LoRA 로더와 같습니다. 저장되는 LoRA에 반영됩니다."
+      },
+      "preset": {
+        "tooltip": "Full = LoRA 그대로. 각 블록 그룹 프리셋은 해당 블록을 0.3으로 낮춥니다. 고정된 seed 배치로 각각 시도해 얼굴이 풀리는 것을 고르세요. 그래프를 드래그하면 Custom으로 바뀝니다."
+      },
+      "blocks": {
+        "tooltip": "블록 배율 28개, 0에서 2(1 = 변화 없음). 노드의 막대를 드래그하세요."
+      },
+      "attention": {
+        "tooltip": "모든 블록의 attention 레이어(self 및 cross attention) 배율."
+      },
+      "mlp": {
+        "tooltip": "모든 블록의 MLP 레이어 배율."
+      },
+      "outside_blocks": {
+        "tooltip": "28개 블록 밖의 레이어(LLM adapter, 마지막 레이어)가 LoRA에 있을 경우의 배율입니다. 히트맵 메모에 몇 개인지 나옵니다."
+      },
+      "spike_soften": {
+        "tooltip": "layers = 다른 블록의 같은 레이어보다 훨씬 강한 레이어를 한계까지 낮춥니다. directions = 각 레이어 안에서 지배적인 한두 방향을 평탄화합니다(일반 lora_A / lora_B 파일만). both = 둘 다."
+      },
+      "spike_limit": {
+        "tooltip": "스파이크가 어느 정도 강해야 완화되는지. layers: 28개 블록에 걸친 해당 레이어 중앙값의 배수. directions: 해당 레이어에서 두 번째로 강한 방향의 배수(잘 동작하는 LoRA는 약 2). 낮을수록 더 많이 완화됩니다."
+      },
+      "blocks_in": {
+        "tooltip": "다른 노드(예: LC Anima LoRA Block Scan의 blocks 출력)에서 온 28블록 곡선. 연결하면 프리셋과 막대를 대체합니다."
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "편집된 LoRA가 적용된 모델."
+      },
+      "1": {
+        "tooltip": "편집된 LoRA로, LC LoRA Save용."
+      }
+    }
+  },
+  "LCKrea2LoRABlockScan": {
+    "description": "고정 seed 배치를 LoRA 없이, LoRA 적용, 블록 그룹을 하나씩 끈 상태로 렌더링한 뒤, 기본 모델과 전체 LoRA 대비 face lock(같은 얼굴 점수)과 변화량을 채점합니다. LC Krea2 LoRA Editor에서 낮출 블록을 찾아줍니다.",
+    "inputs": {
+      "model": {
+        "tooltip": "LoRA가 없는 Krea 2 모델."
+      },
+      "positive": {
+        "tooltip": "얼굴(face lock용)과 장면(전체 이미지 변경용)을 모두 보여 주는 프롬프트입니다."
+      },
+      "lora_name": {
+        "tooltip": "models/loras에서 스캔할 LoRA."
+      },
+      "groups": {
+        "tooltip": "한 번에 하나씩 끌 블록 그룹, 쉼표로 구분. fusion = 28개 블록 밖의 text fusion 레이어. 그룹마다 렌더링이 한 행씩 늘어납니다."
+      },
+      "off_value": {
+        "tooltip": "테스트 중인 그룹에서 'off'의 의미. 0 = 완전히 끔."
+      },
+      "images": {
+        "tooltip": "행당 seed 수(배치 하나). 8이면 같은 얼굴 점수가 안정적입니다. 적으면 빠르지만 노이즈가 늘어납니다."
+      },
+      "negative": {
+        "tooltip": "선택 사항. 연결하지 않으면 비어 있는(0으로 채운) negative로, cfg 1에 적합합니다."
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "렌더 세트당 한 행: LoRA 없음, 전체 LoRA, 그다음 각 그룹 off."
+      },
+      "1": {
+        "tooltip": "행별 점수와 그에 따른 제안."
+      },
+      "2": {
+        "tooltip": "추천 28블록 곡선. LC Krea2 LoRA Editor의 blocks에 연결하거나(입력으로 변환) 복사해서 쓰세요."
+      }
+    }
+  },
+  "LCAnimaLoRABlockScan": {
+    "description": "고정된 seed 배치를 LoRA 없이, LoRA와 함께, 그리고 각 블록 그룹을 끈 상태로 렌더링한 뒤, base 모델 및 전체 LoRA 대비 face lock(같은 캐릭터, CCIP)과 변화량을 점수화합니다. LC Anima LoRA Editor에서 낮출 블록을 찾아줍니다. CCIP는 한 번 다운로드됩니다(약 150 MB).",
+    "inputs": {
+      "model": {
+        "tooltip": "LoRA가 없는 Anima 모델."
+      },
+      "positive": {
+        "tooltip": "한 캐릭터(face lock용)와 장면을 보여주는 prompt."
+      },
+      "lora_name": {
+        "tooltip": "models/loras에서 스캔할 LoRA."
+      },
+      "groups": {
+        "tooltip": "한 번에 하나씩 끌 블록 그룹을 쉼표로 구분해 입력합니다. outside = LLM adapter와 마지막 레이어. 그룹 하나당 렌더 행이 하나 늘어납니다."
+      },
+      "off_value": {
+        "tooltip": "테스트 중인 그룹에서 'off'의 의미. 0 = 완전히 끔."
+      },
+      "images": {
+        "tooltip": "행당 seed 수(배치 하나). 8이면 같은 얼굴 점수가 안정적입니다. 적으면 빠르지만 노이즈가 늘어납니다."
+      },
+      "negative": {
+        "tooltip": "선택 사항이지만, cfg 1 초과의 Anima에는 실제 negative가 필요합니다."
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "렌더 세트당 한 행: LoRA 없음, 전체 LoRA, 그다음 각 그룹 off."
+      },
+      "1": {
+        "tooltip": "행별 점수와 그에 따른 제안."
+      },
+      "2": {
+        "tooltip": "제안되는 28블록 곡선. LC Anima LoRA Editor의 blocks_in에 연결하세요."
+      }
+    }
+  },
+  "LCKrea2LoRAMerge": {
+    "description": "Krea 2 LoRA 2~4개를 블록별 A / B 곡선(sum 또는 TIES)으로 병합하고, 결과를 모델에 적용하며, LC LoRA Save용으로 출력합니다. 히트맵은 A와 B의 비중 및 병합 결과를 보여 줍니다.",
+    "inputs": {
+      "model": {
+        "tooltip": "Krea 2 모델. 병합된 LoRA가 LoRA 로더처럼 여기에 적용됩니다."
+      },
+      "lora_a": {
+        "tooltip": "models/loras의 LoRA A."
+      },
+      "lora_b": {
+        "tooltip": "models/loras의 LoRA B."
+      },
+      "mix": {
+        "tooltip": "일반 모델 병합처럼 병합 전체를 조절하는 슬라이더 하나: 0 = LoRA A만, 1 = LoRA B만. 0.5에서는 막대가 설정한 그대로 적용되고, 0 쪽으로 갈수록 B가 모든 곳에서 약해지며, 1 쪽으로 갈수록 A가 약해집니다."
+      },
+      "method": {
+        "tooltip": "sum = LoRA를 정확히 더합니다(빠름). ties = 각 LoRA의 가장 강한 변화는 유지하고 서로 충돌하는 변화는 버립니다. 스타일 두 개나 캐릭터 두 개처럼 충돌하는 LoRA용. 더 느립니다(모든 전체 레이어에서 작동)."
+      },
+      "preset": {
+        "tooltip": "블록별: 0 = A만, 0.5 = 둘 다 최대 강도, 1 = B만. 그래프를 드래그하면 Custom으로 전환됩니다."
+      },
+      "blocks": {
+        "tooltip": "28개 블록 값, 0(A)에서 1(B). 노드의 막대를 드래그하세요."
+      },
+      "ties_density": {
+        "tooltip": "ties 전용: 각 LoRA 변화 중 유지되는 비율(가장 강한 것). 낮을수록 가장 중요한 변화만 남습니다."
+      },
+      "blocks_in": {
+        "tooltip": "다른 노드에서 온 28블록 곡선입니다. 연결하면 프리셋과 막대를 대체합니다."
+      },
+      "lora_c": {
+        "tooltip": "선택적 세 번째 LoRA로, 모든 블록에 strength_c로 적용됩니다(커브와 무관)."
+      },
+      "lora_d": {
+        "tooltip": "선택적 네 번째 LoRA로, 모든 블록에 strength_d로 적용됩니다(커브와 무관)."
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "병합된 LoRA가 적용된 모델."
+      },
+      "1": {
+        "tooltip": "병합된 LoRA로, LC LoRA Save용."
+      }
+    }
+  },
+  "LCAnimaLoRAMerge": {
+    "description": "Anima LoRA 2~4개를 블록별 A / B 곡선(sum 또는 TIES)으로 병합하고, 결과를 모델에 적용해 LC LoRA Save용으로 출력합니다. 히트맵은 A와 B의 비중 및 병합 결과를 보여줍니다.",
+    "inputs": {
+      "model": {
+        "tooltip": "Anima 모델. 병합된 LoRA가 LoRA 로더처럼 여기에 적용됩니다."
+      },
+      "lora_a": {
+        "tooltip": "models/loras의 LoRA A."
+      },
+      "lora_b": {
+        "tooltip": "models/loras의 LoRA B."
+      },
+      "mix": {
+        "tooltip": "일반 모델 병합처럼 병합 전체를 조절하는 슬라이더 하나: 0 = LoRA A만, 1 = LoRA B만. 0.5에서는 막대가 설정한 그대로 적용되고, 0 쪽으로 갈수록 B가 모든 곳에서 약해지며, 1 쪽으로 갈수록 A가 약해집니다."
+      },
+      "method": {
+        "tooltip": "sum = LoRA를 정확히 더합니다(빠름). ties = 각 LoRA의 가장 강한 변화는 유지하고 서로 충돌하는 변화는 버립니다. 스타일 두 개나 캐릭터 두 개처럼 충돌하는 LoRA용. 더 느립니다(모든 전체 레이어에서 작동)."
+      },
+      "preset": {
+        "tooltip": "블록별: 0 = A만, 0.5 = 둘 다 최대 강도, 1 = B만. 그래프를 드래그하면 Custom으로 전환됩니다."
+      },
+      "blocks": {
+        "tooltip": "28개 블록 값, 0(A)에서 1(B). 노드의 막대를 드래그하세요."
+      },
+      "ties_density": {
+        "tooltip": "ties 전용: 각 LoRA 변화 중 유지되는 비율(가장 강한 것). 낮을수록 가장 중요한 변화만 남습니다."
+      },
+      "blocks_in": {
+        "tooltip": "다른 노드에서 온 28블록 곡선입니다. 연결하면 프리셋과 막대를 대체합니다."
+      },
+      "lora_c": {
+        "tooltip": "선택적 세 번째 LoRA로, 모든 블록에 strength_c로 적용됩니다(커브와 무관)."
+      },
+      "lora_d": {
+        "tooltip": "선택적 네 번째 LoRA로, 모든 블록에 strength_d로 적용됩니다(커브와 무관)."
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "병합된 LoRA가 적용된 모델."
+      },
+      "1": {
+        "tooltip": "병합된 LoRA로, LC LoRA Save용."
+      }
+    }
+  },
+  "LCAnimaBlockMergeAdvanced": {
+    "description": "28개 블록에 걸친 드래그 가능한 블록별 비율 곡선과, 블록 밖의 이름 붙은 부분(x embedder, timestep embedder 및 norm, LLM adapter, final layer)용 슬라이더를 갖춘 Anima 병합입니다. ComfyUI 자체의 ModelMergeBlocks를 그대로 사용합니다. 저장하면 web/anima_block_presets/<name>.json에 기록됩니다.",
+    "inputs": {
+      "model1": {
+        "tooltip": "비율 0 쪽. 0.0인 블록/영역은 전적으로 이 체크포인트에서 가져옵니다."
+      },
+      "model2": {
+        "tooltip": "비율 1 쪽. 1.0인 블록/영역은 전적으로 이 체크포인트에서 가져옵니다."
+      },
+      "preset": {
+        "tooltip": "기본 제공: 50_50, model2_early(model2의 블록 0-6), model2_look(블록 7-20, Anima finetune의 룩이 있는 곳), model2_late(21-27), 그리고 직접 저장한 것. 하나를 불러오면 곡선과 이름 붙은 슬라이더가 설정됩니다. Custom은 드래그한 값을 유지합니다."
+      },
+      "edit_mode": {
+        "tooltip": "smooth = 한 블록을 드래그하면 이웃 블록과 섞임. spike = 한 블록만 움직임."
+      },
+      "smooth_radius": {
+        "tooltip": "smooth 모드의 이웃 창(블록 수). 0 = spike에 가까움."
+      },
+      "blocks_curve": {
+        "tooltip": "28개 비율의 쉼표 목록(blocks.0. - blocks.27.). 0 = 전부 model1, 1 = 전부 model2. preset이 Custom일 때의 기준 값."
+      },
+      "x_embedder": {
+        "tooltip": "x_embedder. — block 0 전에 이미지 latent를 토큰으로 바꿉니다."
+      },
+      "t_embedder": {
+        "tooltip": "t_embedder. — 타임스텝 임베딩."
+      },
+      "t_embedding_norm": {
+        "tooltip": "t_embedding_norm. — timestep embedding의 norm."
+      },
+      "llm_adapter": {
+        "tooltip": "llm_adapter. — Qwen text encoder의 출력을 모델에 연결합니다(prompt를 읽는 방식)."
+      },
+      "final_layer": {
+        "tooltip": "final_layer. — block 27 이후의 출력 레이어."
+      },
+      "save_name": {
+        "tooltip": "web/anima_block_presets/ 아래의 파일 이름(확장자 없음)."
+      },
+      "save_curve": {
+        "tooltip": "실행 시 save_name.json을 web/anima_block_presets/에 씁니다."
+      }
+    }
+  },
+  "LCMOSSBlockMergeAdvanced": {
+    "description": "42개 레이어에 걸친 드래그 가능한 레이어별 비율 곡선과, 그 밖의 명명된 부분(picture in, prompt in, timestep, modulation, final layer)용 슬라이더가 있는 MOSS Image 병합. ComfyUI 자체의 ModelMergeBlocks를 재사용합니다. Save는 web/moss_block_presets/<name>.json에 기록합니다.",
+    "inputs": {
+      "model1": {
+        "tooltip": "비율 0 쪽. 0.0인 블록/영역은 전적으로 이 체크포인트에서 가져옵니다."
+      },
+      "model2": {
+        "tooltip": "비율 1 쪽. 1.0인 블록/영역은 전적으로 이 체크포인트에서 가져옵니다."
+      },
+      "preset": {
+        "tooltip": "기본 제공: 50_50, model2_early(model2의 레이어 0-13), model2_look(14-27), model2_late(28-41: SFT + Base 테스트에서 포즈와 얼굴 대부분을 담당), 그리고 직접 저장한 것. 하나를 불러오면 곡선과 이름 붙은 슬라이더가 설정됩니다. Custom은 드래그한 값을 유지합니다."
+      },
+      "edit_mode": {
+        "tooltip": "smooth = 한 블록을 드래그하면 이웃 블록과 섞임. spike = 한 블록만 움직임."
+      },
+      "smooth_radius": {
+        "tooltip": "smooth 모드의 이웃 창(블록 수). 0 = spike에 가까움."
+      },
+      "blocks_curve": {
+        "tooltip": "42개 비율의 쉼표 목록(layers.0. - layers.41.). 0 = model1, 1 = model2. 그래프를 드래그해 설정하세요."
+      },
+      "image_in": {
+        "tooltip": "video_embedder. layer 0 전에 이미지 latent를 토큰으로 바꿉니다."
+      },
+      "text_in": {
+        "tooltip": "text_embedder. Qwen3.5 text encoder의 출력을 모델에 연결합니다(prompt를 읽는 방식)."
+      },
+      "timestep": {
+        "tooltip": "time_embedding. 타임스텝(이미지에 노이즈가 얼마나 있는지)."
+      },
+      "modulation": {
+        "tooltip": "shared_block_modulation. 모든 레이어가 공유하는 modulation 테이블 하나: 스텝마다 각 레이어가 얼마나 강하게 작용하는지."
+      },
+      "head_modulation": {
+        "tooltip": "video_head_modulation. 출력 head의 modulation."
+      },
+      "final_norm": {
+        "tooltip": "final_norm_video. 출력 레이어 앞의 norm."
+      },
+      "final_layer": {
+        "tooltip": "final_linear_video. 레이어 41 이후의 출력 레이어."
+      },
+      "save_name": {
+        "tooltip": "web/moss_block_presets/ 아래의 파일 이름(확장자 없음)."
+      },
+      "save_curve": {
+        "tooltip": "실행 시 save_name.json을 web/moss_block_presets/에 기록합니다."
+      }
+    }
+  },
+  "LCLoRABake": {
+    "description": "LoRA를 최대 4개까지 모델 파일에 bake해 새 모델로 저장하며, 선택적으로 블록별 곡선을 쓸 수 있습니다. ComfyUI가 읽는 모든 LoRA 형식을 지원합니다. 레시피는 파일에 기록됩니다.",
+    "inputs": {
+      "model_name": {
+        "tooltip": "bake할 bf16 / fp16 모델. 결과는 나중에 LC Model Quantize로 양자화하세요."
+      },
+      "lora_1": {
+        "tooltip": "이 모델 계열용으로 만든 LoRA."
+      },
+      "lora_2": {
+        "tooltip": "이 모델 계열용으로 만든 LoRA."
+      },
+      "lora_3": {
+        "tooltip": "이 모델 계열용으로 만든 LoRA."
+      },
+      "lora_4": {
+        "tooltip": "이 모델 계열용으로 만든 LoRA."
+      },
+      "blocks_curve": {
+        "tooltip": "선택 사항: 블록당 숫자 하나(쉼표 목록)로, 해당 블록의 강도에 곱해집니다. 0이면 그 블록은 건드리지 않습니다. 비어 있으면 모든 곳에서 1. LoRA Editor 및 Block Scan과 같은 목록입니다."
+      },
+      "outside_blocks": {
+        "tooltip": "번호가 붙은 블록 밖의 레이어(embedders, text 쪽, final layer)에 대한 배수."
+      },
+      "filename": {
+        "tooltip": "원본 모델 옆에 저장되며 .safetensors가 붙습니다."
+      },
+      "device": {
+        "tooltip": "cpu: VRAM 사용 없음, 약 1분. gpu: 더 빠름, VRAM이 조금 필요."
+      }
+    }
+  },
+  "LCModelMergeAny": {
+    "description": "서로 다른 정밀도로 저장된 두 모델을 병합합니다(bf16과 fp8, int8, nvfp4 또는 GGUF, 순서 무관). 양자화된 쪽을 먼저 full precision으로 디코드하고 full-precision 모델이 base가 되므로, 결과는 full precision으로 유지됩니다. LC Diffusion Model Save로 저장하세요.",
+    "inputs": {
+      "model1": {
+        "tooltip": "모든 정밀도: bf16, fp16, fp32, fp8, int8, nvfp4 또는 GGUF."
+      },
+      "model2": {
+        "tooltip": "model1과 같은 아키텍처, 정밀도는 무관."
+      },
+      "ratio": {
+        "tooltip": "0 = 전부 model1, 1 = 전부 model2, 0.5 = 반반."
+      },
+      "block_ratios": {
+        "tooltip": "번호가 매겨진 블록이 있는 모델(Krea 2는 28개)용 선택적 블록별 비율입니다. 쉼표 목록, 블록 0이 첫 번째, ratio와 같은 스케일. 블록 밖의 레이어는 ratio를 사용합니다. 비우면 어디서나 ratio."
+      }
+    }
+  },
+  "LCLoRAExtract": {
+    "description": "finetune 모델과 그 base의 차이로 LoRA를 만듭니다(예: Krealism 빼기 Krea 2 Turbo). 양쪽 모두 어떤 정밀도든 가능합니다. 변하지 않은 레이어는 파일에서 제외됩니다.",
+    "inputs": {
+      "finetuned": {
+        "tooltip": "finetune 또는 병합 모델(예: Krealism). 어떤 정밀도든 가능."
+      },
+      "base": {
+        "tooltip": "이것이 만들어진 기반 모델(예: Krea 2 Turbo). 모든 정밀도."
+      },
+      "parts": {
+        "tooltip": "all layers = 차이 전체. blocks only = 번호가 붙은 블록만(Krea 2에서는 text fusion과 임베딩 레이어가 제외되며, Krea 2 Raw용 LoRA에 사용). custom blocks = 아래 목록."
+      },
+      "blocks": {
+        "tooltip": "custom blocks와 함께 사용: 범위와 개별 숫자. 예: 14-27 또는 4-9, 16, 20-22."
+      },
+      "rank": {
+        "tooltip": "레이어가 사용할 수 있는 최대 rank. 더 적게 필요한 레이어는 작게 유지됩니다."
+      },
+      "keep": {
+        "tooltip": "각 레이어의 변화를 얼마나 남길지 정합니다(0.90 = 90%). 높을수록 finetune에 가깝고 파일이 커집니다. Krealism: rank 256에서 0.90이 전체 모델과 같았습니다."
+      },
+      "min_change": {
+        "tooltip": "변화가 이 값보다 작은 레이어(레이어 대비 상대값)는 변하지 않은 것으로 보고 제외합니다. 0.001은 bf16 반올림 노이즈를 건너뜁니다."
+      },
+      "filename": {
+        "tooltip": "models/loras 아래에 저장됩니다. 덮어쓰지 않고 번호가 붙습니다."
+      },
+      "enabled": {
+        "tooltip": "Off = 노드를 물리적으로 바이패스하지 않고 저장을 완전히 건너뜁니다(파일이 쓰이지 않음). 입력으로 변환하면 그래프의 다른 곳에 있는 스위치로 저장을 제어할 수 있습니다."
+      },
+      "embed_workflow": {
+        "tooltip": "저장되는 파일의 메타데이터에 프롬프트와 워크플로 JSON을 포함합니다. 정확한 노드 그래프가 첨부되는 것을 원하지 않으면 체크포인트를 공유/게시하기 전에 끄세요."
+      },
+      "metadata": {
+        "tooltip": "keep all = 이 저장이 평소 기록하는 모든 것(embed_workflow가 켜져 있으면 노드 그래프 전체 포함). necessary only = 로딩에 필요한 것(있다면 양자화 설정)과 아키텍처, 트리거 단어만: 워크플로, 학습 정보, 제목, 편집 메모는 없음. 파일을 공유하기 전에 사용하세요."
+      },
+      "applied_loras": {
+        "tooltip": "included = 각 레이어를 실제 실행되는 상태로 읽습니다. MODEL 선에 적용된 LoRA, 병합, 패치(LC LoRA Loader, LoRA Editor...)가 반영됩니다. 'Krealism + 3 LoRAs'를 하나의 LoRA로 추출합니다. file weights only = 모델 파일 자체의 weight(이전 동작)."
+      }
+    }
+  },
+  "LCScoreboard": {
+    "description": "A / B 테스트용 일대일 스코어보드. #1 Win, Tie, #2 Win 중 하나를 누르세요. 한쪽의 승리는 다른 쪽의 패배입니다. 누가 얼마나 앞서는지 보여줍니다. 점수는 워크플로와 함께 저장됩니다.",
+    "inputs": {
+      "wins_1": {
+        "tooltip": "#1의 승수(= #2의 패수). 버튼을 사용하고, 실수를 고치려면 여기에 입력하세요."
+      },
+      "ties": {
+        "tooltip": "무승부. 버튼을 사용하고, 실수를 고치려면 여기에 입력하세요."
+      },
+      "wins_2": {
+        "tooltip": "#2의 승수(= #1의 패수). 버튼을 사용하고, 실수를 고치려면 여기에 입력하세요."
+      }
+    }
+  },
+  "LCModelQuantize": {
+    "description": "diffusion 모델의 더 작은 복사본을 저장합니다: fp8, mxfp8, nvfp4, int8 또는 int4(ComfyUI 네이티브 파일) 또는 GGUF Q8_0 ~ Q2_K. 연결된 MODEL(LoRA와 병합이 구워짐)에서, 또는 파일에서 직접 레이어 하나씩 처리합니다. Embedder, norm, 마지막 레이어는 full precision으로 유지됩니다. 연결된 모델은 변하지 않습니다.",
+    "inputs": {
+      "source": {
+        "tooltip": "weight를 가져오는 곳입니다. '(use the model input)'은 연결된 MODEL을 LoRA와 병합까지 포함해 가져옵니다(64 GB RAM에서 약 12-14B까지 적합). 파일은 레이어 하나씩 읽으므로 어떤 크기든 됩니다. fp8이 아닌 bf16 / fp16 파일을 고르세요."
+      },
+      "format": {
+        "tooltip": "fp8: 절반 크기, 거의 무손실, 40 / 50 시리즈에서 빠름. mxfp8, nvfp4: 50 시리즈 전용. int8 (convrot): 절반 크기, 30 시리즈에서도 실행됨. int4: 4분의 1. GGUF는 로드하려면 ComfyUI-GGUF가 필요합니다. Q8_0은 거의 무손실, Q6_K / Q5_K는 매우 근접, Q4_K_M은 작은 카드에 가장 흔한 선택, Q3 / Q2는 다른 건 안 들어갈 때 쓰세요. _M은 첫 두 블록과 마지막 두 블록을 더 높은 타입으로 유지합니다."
+      },
+      "protect_edges": {
+        "tooltip": "첫 번째와 마지막 transformer 블록도 전체 정밀도로 유지합니다(조금 더 크고, 원본에 조금 더 가까움)."
+      },
+      "filename": {
+        "tooltip": "models/diffusion_models에 저장됩니다. 비어 있으면 원본 이름 + 형식. 하위 폴더도 가능: 'Krea2/Krealism'. 기존 파일은 절대 덮어쓰지 않습니다."
+      },
+      "model": {
+        "tooltip": "source가 '(use the model input)'일 때 사용."
+      }
+    }
+  },
+  "LCVAEMerge": {
+    "description": "같은 계열의 두 VAE의 디코더를 거친 형태에서 미세한 질감까지 영역별로 병합합니다. 인코더는 vae_a의 것이 유지되므로, 병합된 VAE는 vae_a용으로 만든 모델에 그대로 맞습니다.",
+    "inputs": {
+      "vae_a": {
+        "tooltip": "base입니다. 그 encoder는 항상 유지되므로, 결과가 이를 기반으로 학습된 모델들과 계속 호환됩니다."
+      },
+      "vae_b": {
+        "tooltip": "같은 계열의 다른 VAE(예: 같은 base의 decoder finetune)."
+      },
+      "start": {
+        "tooltip": "디코더 입력과 중간: 전체 톤과 색. 0 = 전부 base(vae_a), 1 = 전부 vae_b."
+      },
+      "coarse": {
+        "tooltip": "첫 번째 업샘플링 단계: 큰 형태."
+      },
+      "medium": {
+        "tooltip": "두 번째 업샘플링 단계."
+      },
+      "fine": {
+        "tooltip": "세 번째 업샘플링 단계."
+      },
+      "finest": {
+        "tooltip": "마지막 업샘플링 단계와 출력 레이어: 미세한 질감, 선명도, 최종 색 매핑."
+      }
+    }
+  },
+  "LCVAESave": {
+    "description": "VAE(예: 병합한 것)를 fp32, bf16 또는 fp16으로 models/vae에 저장합니다.",
+    "inputs": {
+      "filename": {
+        "tooltip": "models/vae에 저장되어 Load VAE에서 바로 쓸 수 있습니다. 하위 폴더도 됩니다. 기존 파일은 절대 덮어쓰지 않습니다."
+      },
+      "precision": {
+        "tooltip": "fp32는 모든 비트를 유지합니다(VAE에는 가장 안전). bf16 / fp16은 크기를 절반으로 줄이며, bf16은 부드러운 그라데이션에서 밴딩이 약간 생길 수 있습니다."
+      },
+      "enabled": {
+        "tooltip": "Off면 저장을 건너뜁니다."
+      }
+    }
+  },
+  "LCVAECompare": {
+    "description": "같은 latent를 최대 6개의 VAE로 디코딩해 1:1 디테일 크롭, 선명도 수치, 각각이 vae_1에서 얼마나 떨어져 있는지와 함께 나란히 보여 줍니다.",
+    "inputs": {
+      "samples": {
+        "tooltip": "실제 렌더(KSampler 출력)의 latent입니다. 모든 VAE가 이 같은 latent를 디코딩하며, 이것이 실제로 보이는 결과입니다."
+      },
+      "vae_1": {
+        "tooltip": "기준: 나머지는 이것을 기준으로 측정됩니다."
+      },
+      "labels": {
+        "tooltip": "열 이름, 쉼표로 구분. 비어 있으면 = vae 1, vae 2, ..."
+      },
+      "crop_size": {
+        "tooltip": "각 디코드 중앙의 1:1 크롭이 아래에 크게 표시되어 질감을 판단할 수 있습니다."
+      }
+    }
+  },
+  "LCStripMetadata": {
+    "description": "이미 저장한 모델에서 메타데이터(내장 워크플로, 학습 정보, 제목)를 제거합니다. 가중치는 바이트 단위로 그대로 복사되므로(로드하거나 다시 저장하지 않음) 이전과 똑같이 로드됩니다. 저장 노드의 메타데이터 스위치와 같은 규칙입니다.",
+    "inputs": {
+      "file": {
+        "tooltip": "저장된 모델, 체크포인트, LoRA, VAE 또는 텍스트 인코더(.safetensors)."
+      },
+      "mode": {
+        "tooltip": "necessary only = 로딩에 필요한 것과 아키텍처, 트리거 단어만 유지(저장 노드의 스위치와 동일). everything = 빈 헤더(다른 도구가 로드하는 데 필요한 양자화 설정은 그대로 유지됨)."
+      },
+      "save_as": {
+        "tooltip": "new file = 원본 옆에 name_clean.safetensors를 쓰고 원본은 건드리지 않습니다. replace = 정리된 복사본이 완전히 쓰이고 나면 원본을 그것으로 교체합니다."
+      },
+      "enabled": {
+        "tooltip": "Off면 건너뜁니다(아무것도 기록되지 않음)."
+      }
+    }
+  },
+  "LCModelFingerprint": {
+    "description": "이 체크포인트 안에 모델이나 LoRA가 들어 있을까요? weight 자체를 비교하므로 metadata 없이도 작동합니다: 다른 정밀도의 같은 모델, 그 finetune, 블록 병합, 또는 병합된 LoRA(대략의 strength 포함).",
+    "inputs": {
+      "model": {
+        "tooltip": "검사할 체크포인트입니다. 평소 쓰는 로더로 로드하세요(모든 정밀도, GGUF도 가능)."
+      },
+      "reference": {
+        "tooltip": "출처라고 생각하는 모델. 비교에 필요하며 LoRA 검사의 기준 모델로도 쓰입니다."
+      },
+      "lora_name": {
+        "tooltip": "체크포인트에 병합되었다고 생각되는 LoRA입니다. 참조가 필요합니다: 그 LoRA가 만들어진 기반 모델."
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "발견한 내용을 쉬운 말로, 근거가 되는 수치와 함께."
+      },
+      "1": {
+        "tooltip": "블록별 유사도(초록 = 같은 가중치, 노랑 = 가까움, 빨강 = 다름). LoRA가 있으면: 블록별로 얼마나 강하게 나타나는지."
+      }
+    }
+  },
+  "LCFingerprintLibrary": {
+    "description": "fingerprint 라이브러리를 만듭니다: 폴더를 훑어 모든 모델과 LoRA의 작은 fingerprint(약 1 MB)를 계열 정보와 함께 저장합니다. 한 번 등록하면 원본 파일은 지워도 됩니다. LC Fingerprint Identify가 이 라이브러리로 새 파일의 구성을 알아냅니다.",
+    "inputs": {
+      "folders": {
+        "tooltip": "핑거프린트할 폴더(또는 단일 파일)를 한 줄에 하나씩 입력합니다: 전체 경로, ComfyUI 폴더 기준 경로(models/loras), 또는 ComfyUI가 읽는 모든 위치를 대상으로 하는 모델 폴더 이름(loras, diffusion_models, checkpoints). 안에 있는 모든 .safetensors를 검사합니다: 모델과 LoRA는 라이브러리에 들어가고, VAE / 텍스트 인코더 / 업스케일러는 건너뜁니다."
+      },
+      "recursive": {
+        "tooltip": "그 안의 폴더도 포함합니다."
+      },
+      "skip_known": {
+        "tooltip": "라이브러리에 이미 있는 파일(같은 크기와 날짜)을 건너뛰므로, 다시 실행하면 새로운 것만 추가됩니다."
+      },
+      "precision": {
+        "tooltip": "모델 전용: int8, mxfp8, nvfp4 등 낮은 quant는 제외하세요. bf16 / fp8 파일과 같은 모델을 반올림한 것일 뿐이라 얻는 것이 없습니다."
+      }
+    }
+  },
+  "LCFingerprintIdentify": {
+    "description": "이 파일은 무엇으로 만들어졌을까요? 모델의 경우 fingerprint 라이브러리 기준으로 블록별 레시피(어떤 모델이 어떤 비율로 병합되었는지, 어떤 LoRA가 들어갔는지), 확신도, 히트맵을 보여줍니다. LoRA는 라이브러리의 LoRA와 대조합니다(이름만 바꾼 복사본도 드러납니다). 라이브러리에 있는 것만 알아낼 수 있습니다.",
+    "inputs": {
+      "files": {
+        "tooltip": "식별할 파일 또는 폴더, 한 줄에 하나: 전체 경로, ComfyUI 폴더 기준 경로, 또는 diffusion_models 같은 모델 폴더 이름(다운로드 폴더도 가능)."
+      },
+      "add_to_library": {
+        "tooltip": "이후 각각을 라이브러리에도 저장해 다음에 알아볼 수 있게 합니다."
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "각 파일의 구성을 말로 설명."
+      },
+      "1": {
+        "tooltip": "블록별로 라이브러리의 어느 모델에서 왔는지(밝을수록 비중이 큼), LoRA, 그리고 라이브러리에 없는 부분을 보여줍니다. 모델당 이미지 한 장."
+      }
+    }
+  }
+}
