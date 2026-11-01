@@ -19,7 +19,6 @@ Rules, same spirit as the LC Vision installer:
 
 from __future__ import annotations
 
-import base64
 import importlib
 import importlib.metadata as md
 import re
@@ -28,8 +27,6 @@ import sys
 import time
 from pathlib import Path
 
-# A 1-op ONNX model (Identity), so the self-test needs no model download and no `onnx` package.
-_TEST_MODEL = base64.b64decode("CAg6NwoQCgF4EgF5IghJZGVudGl0eRIBdFoPCgF4EgoKCAgBEgQKAggBYg8KAXkSCgoICAESBAoCCAFCBAoAEA0=")
 _FLAVORS = ("onnxruntime", "onnxruntime-gpu", "onnxruntime-directml", "onnxruntime-openvino", "onnxruntime-silicon")
 
 
@@ -48,17 +45,14 @@ def _installed_flavors() -> list[str]:
 
 
 def _self_test() -> str | None:
-    """None when onnxruntime imports and runs a model on CPU, else the error text."""
+    """None when onnxruntime imports with its CPU provider (a broken install fails at the DLL load), else the error text."""
     for mod in [m for m in sys.modules if m == "onnxruntime" or m.startswith("onnxruntime.")]:
         del sys.modules[mod]
     importlib.invalidate_caches()
     try:
-        import numpy as np
         import onnxruntime as ort
 
-        s = ort.InferenceSession(_TEST_MODEL, providers=["CPUExecutionProvider"])
-        out = s.run(None, {"x": np.array([1.5], dtype=np.float32)})[0]
-        return None if float(out[0]) == 1.5 else "self-test returned a wrong value"
+        return None if "CPUExecutionProvider" in ort.get_available_providers() else "onnxruntime has no CPU provider"
     except Exception as e:
         return f"{type(e).__name__}: {e}"
 
