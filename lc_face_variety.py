@@ -22,7 +22,6 @@ from __future__ import annotations
 import hashlib
 import itertools
 import os
-import urllib.request
 import zipfile
 
 import numpy as np
@@ -31,6 +30,8 @@ import torch.nn.functional as F
 from PIL import Image
 
 import folder_paths
+
+from .lc_first_download import download
 
 BUFFALO_URL = "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip"
 DET_FILE = "det_10g.onnx"
@@ -91,26 +92,12 @@ def _sha256(path):
 
 
 def _download_models():
-    from comfy.utils import ProgressBar
+    from comfy.model_management import InterruptProcessingException
 
     os.makedirs(_DEFAULT_DIR, exist_ok=True)
-    zpath = os.path.join(_DEFAULT_DIR, "buffalo_l.zip.part")
-    print(f"[LC Modelbuilder] downloading InsightFace buffalo_l (~280 MB) to {_DEFAULT_DIR}")
+    zpath = os.path.join(_DEFAULT_DIR, "buffalo_l.zip")
     try:
-        with urllib.request.urlopen(BUFFALO_URL, timeout=60) as r, open(zpath, "wb") as f:
-            total = int(r.headers.get("Content-Length") or 0)
-            pbar = ProgressBar(total) if total else None
-            done = 0
-            while True:
-                chunk = r.read(1 << 20)
-                if not chunk:
-                    break
-                f.write(chunk)
-                done += len(chunk)
-                if pbar:
-                    pbar.update_absolute(done, total)
-        if total and os.path.getsize(zpath) != total:
-            raise RuntimeError("download was cut off")
+        download(BUFFALO_URL, zpath, "InsightFace buffalo_l face models", "about 280 MB")
         with zipfile.ZipFile(zpath) as z:
             if z.testzip() is not None:
                 raise RuntimeError("zip is corrupt")
@@ -124,6 +111,8 @@ def _download_models():
                         os.remove(tmp)
                         raise RuntimeError(f"{base} failed its checksum")
                     os.replace(tmp, os.path.join(_DEFAULT_DIR, base))
+    except InterruptProcessingException:
+        raise  # Stop: let ComfyUI cancel the run as usual
     except Exception as e:
         raise RuntimeError(
             f"LC Face Variety Scorer: buffalo_l download failed ({e}). Nothing half-finished was kept. "

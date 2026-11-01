@@ -37,6 +37,27 @@ import comfy.model_sampling
 import folder_paths
 
 
+def save_checkpoint(output_path, model, clip=None, vae=None, metadata=None, extra_keys=None):
+    """comfy.sd.save_checkpoint(), with mxfp8 scales written as U8. safetensors writes float8_e8m0fnu as "F8_E8M0", a
+    dtype ComfyUI's own loader doesn't know yet (KeyError: 'F8_E8M0' when loading a model saved from an mxfp8 file).
+    Same bytes as U8, the way LC Model Quantize and the released mxfp8 files store them; ComfyUI views them back."""
+    import comfy.utils
+
+    e8m0 = getattr(torch, "float8_e8m0fnu", None)
+    original = comfy.utils.save_torch_file
+
+    def save_torch_file(sd, ckpt, metadata=None):
+        if e8m0 is not None:
+            sd = {k: (v.view(torch.uint8) if isinstance(v, torch.Tensor) and v.dtype == e8m0 else v) for k, v in sd.items()}
+        return original(sd, ckpt, metadata=metadata)
+
+    comfy.utils.save_torch_file = save_torch_file
+    try:
+        comfy.sd.save_checkpoint(output_path, model, clip, vae, metadata=metadata, extra_keys=extra_keys or {})
+    finally:
+        comfy.utils.save_torch_file = original
+
+
 def build_save_metadata(model, filename, counter, embed_workflow, prompt, extra_pnginfo):
     """Shared with LCDiffusionModelSave. Mirrors core's own save_checkpoint()
     helper in comfy_extras/nodes_model_merging.py -- modelspec detection plus
@@ -198,7 +219,7 @@ class LCCheckpointSave:
         output_path = f"{filename}_{counter:05}_.safetensors"
         output_path = os.path.join(full_output_folder, output_path)
 
-        comfy.sd.save_checkpoint(output_path, model, clip, vae, metadata=meta, extra_keys=extra_keys)
+        save_checkpoint(output_path, model, clip, vae, metadata=meta, extra_keys=extra_keys)
         return {}
 
 

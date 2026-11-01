@@ -522,6 +522,46 @@ def explain(sk, base, loras, top=6):
     return found, explained
 
 
+def _lora_makeup(sk, lib_loras, copies, family):
+    """A LoRA (often one extracted from a merge) as a mix of the other library LoRAs, and the library models whose
+    difference from the family's base carries it (a model built with it, or the model it was extracted from)."""
+    from . import lc_fingerprint_recipe as rc
+
+    lines = []
+    others = [e for e in lib_loras if e["name"] not in copies]
+    zero = {"sketch": {k: torch.zeros_like(v) for k, v in sk.items()}}
+    found, expl = explain(sk, zero, others, top=8)
+    if found and expl >= 0.15:
+        lines.append(f"Made from library LoRAs ({expl:.0%} of it): " + ", ".join(f"{n} {s:.2f}" for n, s in found))
+        if expl < 0.8:
+            lines.append(f"The other {1 - expl:.0%} is not in your library (a model or LoRA it has not seen).")
+    else:
+        lines.append("Not a mix of library LoRAs.")
+    models = load_entries(family, "model")
+    if len(models) > 1:
+        base = rc.pick_base(models, models[0]["sketch"])
+        keys = [k for k in sk if k in base["sketch"]]
+        l = torch.cat([sk[k] for k in keys])
+        ll = float(l @ l)
+        held = []
+        for m in models:
+            if m is base or not all(k in m["sketch"] for k in keys):
+                continue
+            d = torch.cat([m["sketch"][k] - base["sketch"][k] for k in keys])
+            dd = float(d @ d)
+            if ll <= 0 or dd <= 0:
+                continue
+            cos = float(l @ d) / (ll * dd) ** 0.5
+            if cos > 0.3:
+                held.append((cos, m["name"], float(l @ d) / ll))
+        held.sort(reverse=True)
+        if held:
+            lines.append(f"Library models whose difference from {base['name']} carries it: "
+                         + ", ".join(f"{n} (~{s:.2f}, match {c:.2f})" for c, n, s in held[:5]))
+            lines.append("(A model at ~1 is built with it or is the one it was extracted from; a lower number holds part of it.)")
+    return lines
+
+
 def identify_sketch(kind, family, sk, precision=("bf16", 0.0015)):
     """-> (report lines, heatmap image or None)."""
     lines = []
@@ -542,6 +582,7 @@ def identify_sketch(kind, family, sk, precision=("bf16", 0.0015)):
         lines.append("Matches in the library: " + (", ".join(hits) if hits else "none (a LoRA the library has not seen)."))
         if same and same[0][0] > 0.98:
             lines.append(f"It is {same[0][1]}, or a copy of it.")
+        lines += _lora_makeup(sk, lib_loras, {n for c, n in same if c > 0.98}, family)
         return lines, None
     from . import lc_fingerprint_recipe as rc
     models = load_entries(family, "model")

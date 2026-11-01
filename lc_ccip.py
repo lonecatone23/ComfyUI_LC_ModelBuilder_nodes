@@ -16,11 +16,12 @@ import glob
 import hashlib
 import itertools
 import os
-import urllib.request
 
 import numpy as np
 
 import folder_paths
+
+from .lc_first_download import download
 
 MODEL = "ccip-caformer-24-randaug-pruned"
 REPO = "https://huggingface.co/deepghs/ccip_onnx/resolve/main"
@@ -52,36 +53,18 @@ def _find():
     return None
 
 
-def _fetch(url, tmp):
-    """Download to a .part file; a network error removes the partial file instead of leaving it behind."""
-    try:
-        with urllib.request.urlopen(url, timeout=60) as r, open(tmp, "wb") as f:
-            while True:
-                chunk = r.read(1 << 20)
-                if not chunk:
-                    break
-                f.write(chunk)
-    except BaseException:
-        try:
-            os.remove(tmp)
-        except OSError:
-            pass
-        raise
-
-
 def _download():
     os.makedirs(_DIR, exist_ok=True)
+    first = True  # one toast for the model, not one per file
     for name, sha in FILES.items():
         dst = os.path.join(_DIR, name)
         if os.path.isfile(dst) and _sha256(dst) == sha:
             continue
-        tmp = dst + ".part"
-        print(f"[LC Modelbuilder] downloading CCIP {name} ...")
-        _fetch(f"{REPO}/{MODEL}/{name}", tmp)
-        if _sha256(tmp) != sha:
-            os.remove(tmp)
+        download(f"{REPO}/{MODEL}/{name}", dst, "CCIP anime character model", "about 150 MB", announce=first)
+        first = False
+        if _sha256(dst) != sha:
+            os.remove(dst)
             raise RuntimeError(f"CCIP {name}: checksum mismatch after download. Try again, or place the file in {_DIR}.")
-        os.replace(tmp, dst)
     return _DIR
 
 
@@ -109,14 +92,10 @@ def _detector():
                                                        "snapshots", "*", "face_detect_v1.4_s", "model.onnx")))
         path = _DET_PATH if os.path.isfile(_DET_PATH) else (hf[0] if hf else None)
         if path is None:
-            os.makedirs(os.path.dirname(_DET_PATH), exist_ok=True)
-            tmp = _DET_PATH + ".part"
-            print("[LC Modelbuilder] downloading the anime face detector ...")
-            _fetch(DET_URL, tmp)
-            if _sha256(tmp) != DET_SHA:
-                os.remove(tmp)
+            download(DET_URL, _DET_PATH, "Anime face detector", "about 45 MB")
+            if _sha256(_DET_PATH) != DET_SHA:
+                os.remove(_DET_PATH)
                 raise RuntimeError("anime face detector: checksum mismatch after download. Try again.")
-            os.replace(tmp, _DET_PATH)
             path = _DET_PATH
         opts = ort.SessionOptions()
         opts.log_severity_level = 3

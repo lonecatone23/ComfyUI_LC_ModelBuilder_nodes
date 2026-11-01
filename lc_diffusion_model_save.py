@@ -23,10 +23,9 @@ from __future__ import annotations
 
 import os
 
-import comfy.sd
 import folder_paths
 
-from .lc_checkpoint_save import build_save_metadata, ENABLED_INPUT, EMBED_WORKFLOW_INPUT, METADATA_INPUT, trim_metadata
+from .lc_checkpoint_save import build_save_metadata, ENABLED_INPUT, EMBED_WORKFLOW_INPUT, METADATA_INPUT, save_checkpoint, trim_metadata
 
 
 class LCDiffusionModelSave:
@@ -75,7 +74,7 @@ class LCDiffusionModelSave:
         output_path = f"{filename}_{counter:05}_.safetensors"
         output_path = os.path.join(full_output_folder, output_path)
 
-        comfy.sd.save_checkpoint(output_path, model, None, None, metadata=meta, extra_keys=extra_keys)
+        save_checkpoint(output_path, model, None, None, metadata=meta, extra_keys=extra_keys)
         return {}
 
 
