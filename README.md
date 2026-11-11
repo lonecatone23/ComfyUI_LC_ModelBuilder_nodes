@@ -16,7 +16,7 @@ Model and checkpoint merging tools by lonecatone23. Companion pack to [ComfyUI_L
 | LC Krea2 LoRA Editor | 🧪 **BETA, still in testing.** Load a Krea 2 LoRA with each of the 28 blocks turned up or down, attention and MLP scaled separately, and spikes softened. Patches the model like a LoRA loader and outputs the edited LoRA. For face lock and for LoRAs that change the whole image. |
 | LC LoRA Save | 🧪 **BETA, still in testing.** Saves an edited LoRA as a standard file with every edit baked in, optionally at a new rank. |
 | LC Krea2 LoRA Block Scan | 🧪 **BETA, still in testing.** Finds where a LoRA locks the face or changes the whole image: renders a seed batch with each block group turned off, scores every row, and suggests a block curve for the Editor. |
-| LC Krea2 LoRA Merge | 🧪 **BETA, still in testing.** Merges two to four Krea 2 LoRAs with a per-block A / B curve (sum or TIES), applies the result like a LoRA loader and outputs it for LC LoRA Save. |
+| LC Krea2 LoRA Merge | 🧪 **BETA, still in testing.** Merges two to four Krea 2 LoRAs with a per-block A / B curve (sum, TIES or balanced), applies the result like a LoRA loader and outputs it for LC LoRA Save. |
 | LC LoRA Bake 🍞 | Bakes up to 4 LoRAs into a model and saves it as a new model file, with a per-block strength curve. Reads every LoRA format ComfyUI reads. The recipe goes into the file's metadata. |
 | LC Model Merge (any precision) | Merges two models stored in different precisions (bf16 with fp8, int8, nvfp4 or GGUF, in either order). The result stays full precision. |
 | LC Model Quantize 🗜️ | Saves a smaller copy of a model: fp8, mxfp8, nvfp4, int8 or int4 (load with the stock loader) or GGUF Q8_0 to Q2_K. From the wired MODEL (LoRAs and merges baked in) or straight from a file of any size. |
@@ -106,7 +106,7 @@ Tested on Better Lip Bite, which both locks the face and changes the whole image
 
 **LC Krea2 LoRA Merge** combines two to four LoRAs into one. The bars set, per block, how much of each you get: **0 = only A**, **0.5 = both at full strength**, **1 = only B**. Layers outside the blocks follow the bars' average.
 
-- **method**: **sum** adds both, exactly (loading the saved merge gives the same image as the node). **ties** keeps each LoRA's strongest changes (**ties_density**) and drops the ones where the two pull against each other: for two styles or two characters that clash. Slower.
+- **method**: **sum** adds both, exactly (loading the saved merge gives the same image as the node). **ties** keeps each LoRA's strongest changes (**ties_density**) and drops the ones where the two pull against each other: for two styles or two characters that clash. Slower. **balanced** brings each LoRA to the same size first, so a loud one can't drown a quiet one, and the merge comes out as strong as one LoRA instead of stacking. Fast.
 - **mix**: one slider over the whole merge, like a plain model merge: **0 = only A**, **1 = only B**. At 0.5 the bars apply as set.
 - **preset**: Both full, A early / B late, B early / A late, A only, B only, and **Face from B** (8-20, 4-13, 16-21). Dragging a bar switches to Custom.
 - **Face from B**: put the main LoRA (body, style) in A and the face LoRA in B. B gets the window, A the rest. Where a LoRA keeps its face changes from LoRA to LoRA, so these are starting points: move the bars, or wire **LC Krea2 LoRA Block Scan**'s curve into **blocks_in**.

@@ -370,7 +370,7 @@
     }
   },
   "LCKrea2LoRAMerge": {
-    "description": "合并两到四个 Krea 2 LoRA，使用逐 block 的 A / B 曲线（sum 或 TIES），将结果应用到模型，并输出供 LC LoRA Save 使用。热力图显示 A 和 B 的占比以及合并结果。",
+    "description": "合并两到四个 Krea 2 LoRA，使用逐 block 的 A / B 曲线（sum、TIES 或 balanced），将结果应用到模型，并输出供 LC LoRA Save 使用。热力图显示 A 和 B 的占比以及合并结果。",
     "inputs": {
       "model": {
         "tooltip": "Krea 2 模型。合并后的 LoRA 会应用到它上面，就像 LoRA 加载器一样。"
@@ -385,7 +385,7 @@
         "tooltip": "整个合并只用一个滑块，就像普通的模型合并：0 = 仅 LoRA A，1 = 仅 LoRA B。在 0.5 时各柱按设定值应用；趋向 0 时 B 处处淡出，趋向 1 时 A 淡出。"
       },
       "method": {
-        "tooltip": "sum = LoRA 精确相加（快）。ties = 保留每个 LoRA 最强的改动，丢弃互相冲突的部分：适用于冲突的 LoRA，例如两种风格或两个角色。较慢（对每个完整层都处理）。"
+        "tooltip": "sum = LoRA 精确相加（快）。ties = 保留每个 LoRA 最强的改动，丢弃互相冲突的部分：适用于冲突的 LoRA，例如两种风格或两个角色。较慢（对每个完整层都处理）。 balanced = 先把每个 LoRA 调到同样的强度，响的不会盖过弱的，合并结果和一个 LoRA 一样强，而不是叠加（快）。"
       },
       "preset": {
         "tooltip": "每个 block：0 = 只用 A，0.5 = 两者全强度，1 = 只用 B。拖动图表会切换到 Custom。"
@@ -416,7 +416,7 @@
     }
   },
   "LCAnimaLoRAMerge": {
-    "description": "合并两到四个 Anima LoRA，使用逐 block 的 A / B 曲线（sum 或 TIES），将结果应用到模型，并输出供 LC LoRA Save 使用。热力图显示 A 和 B 各自的占比以及合并结果。",
+    "description": "合并两到四个 Anima LoRA，使用逐 block 的 A / B 曲线（sum、TIES 或 balanced），将结果应用到模型，并输出供 LC LoRA Save 使用。热力图显示 A 和 B 各自的占比以及合并结果。",
     "inputs": {
       "model": {
         "tooltip": "Anima 模型。合并后的 LoRA 会应用到它上面，与 LoRA loader 相同。"
@@ -431,7 +431,7 @@
         "tooltip": "整个合并只用一个滑块，就像普通的模型合并：0 = 仅 LoRA A，1 = 仅 LoRA B。在 0.5 时各柱按设定值应用；趋向 0 时 B 处处淡出，趋向 1 时 A 淡出。"
       },
       "method": {
-        "tooltip": "sum = LoRA 精确相加（快）。ties = 保留每个 LoRA 最强的改动，丢弃互相冲突的部分：适用于冲突的 LoRA，例如两种风格或两个角色。较慢（对每个完整层都处理）。"
+        "tooltip": "sum = LoRA 精确相加（快）。ties = 保留每个 LoRA 最强的改动，丢弃互相冲突的部分：适用于冲突的 LoRA，例如两种风格或两个角色。较慢（对每个完整层都处理）。 balanced = 先把每个 LoRA 调到同样的强度，响的不会盖过弱的，合并结果和一个 LoRA 一样强，而不是叠加（快）。"
       },
       "preset": {
         "tooltip": "每个 block：0 = 只用 A，0.5 = 两者全强度，1 = 只用 B。拖动图表会切换到 Custom。"

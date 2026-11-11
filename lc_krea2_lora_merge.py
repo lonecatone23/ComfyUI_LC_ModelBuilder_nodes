@@ -11,6 +11,9 @@ model like a LoRA loader and outputs the merged LoRA for LC LoRA Save.
             (ties_density), let them vote on the direction of every weight, and drop the changes that fight the
             vote. Where the LoRAs pull the same way, the change is their average; where only one changes a weight,
             it keeps its full value. Re-fitted to low rank afterwards.
+  balanced: per layer, every LoRA's change is first brought to the same size (the median of theirs), then they are
+            added and the result is set back to that size. A loud LoRA can't drown a quiet one, and two LoRAs at full
+            come out as strong as one, not twice as strong. Strengths and the curve still apply on top.
   mix     : one slider over the whole curve, like a plain merge: 0 = only A, 0.5 = the curve as set, 1 = only B.
   Face presets: B's face blocks into A (A = the main LoRA, B = the face). Where a LoRA keeps its face varies per
             LoRA, so they are starting points: adjust the bars, or wire LC Krea2 LoRA Block Scan's curve.
@@ -130,10 +133,12 @@ class LCKrea2LoRAMerge:
                 "mix": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01,
                         "tooltip": "One slider for the whole merge, like a plain model merge: 0 = only LoRA A, 1 = only "
                                    "LoRA B. At 0.5 the bars apply as set; toward 0 B fades out everywhere, toward 1 A does."}),
-                "method": (["sum", "ties"], {"default": "sum",
+                "method": (["sum", "ties", "balanced"], {"default": "sum",
                            "tooltip": "sum = the LoRAs added, exactly (fast). ties = keeps each LoRA's strongest changes and "
                                       "drops the ones that fight each other: for LoRAs that clash, e.g. two styles or "
-                                      "two characters. Slower (works on every full layer)."}),
+                                      "two characters. Slower (works on every full layer). balanced = each LoRA brought "
+                                      "to the same size first, so a loud one can't drown a quiet one, and the merge "
+                                      "comes out as strong as one LoRA instead of stacking (fast)."}),
                 "preset": (PRESET_NAMES, {"default": "Both full",
                            "tooltip": "Per block: 0 = only A, 0.5 = both at full strength, 1 = only B. Dragging the "
                                       "graph switches to Custom."}),
@@ -158,7 +163,7 @@ class LCKrea2LoRAMerge:
     OUTPUT_TOOLTIPS = ("The model with the merged LoRA applied.", "The merged LoRA, for LC LoRA Save.")
     FUNCTION = "merge"
     CATEGORY = "LC ModelBuilder/Krea2"
-    DESCRIPTION = ("Merges two to four Krea 2 LoRAs with a per-block A / B curve (sum or TIES), applies the result to the "
+    DESCRIPTION = ("Merges two to four Krea 2 LoRAs with a per-block A / B curve (sum, TIES or balanced), applies the result to the "
                    "model and outputs it for LC LoRA Save. The heatmaps show A's and B's share and the merged result.")
 
     ARCH = KREA2
@@ -216,12 +221,29 @@ class LCKrea2LoRAMerge:
                     if x[4] is None:
                         x[4] = float(fulls[x[0]].norm())
             norms = {x[0]: x[4] * abs(x[2]) for x in parts}
-            if not need_full:
-                up = torch.cat([x[3][0] * x[2] for x in parts], 1)
-                down = torch.cat([x[3][1] for x in parts], 0)
+            # balanced: every part scaled to the median size first, the sum set back to that size afterwards
+            bal = method == "balanced" and len(parts) > 1
+            if bal:
+                sizes = sorted(x[4] for x in parts)
+                mid = (sizes[(len(sizes) - 1) // 2] + sizes[len(sizes) // 2]) / 2
+                eq = {x[0]: mid / max(x[4], 1e-12) for x in parts}
+                target = mid * max(abs(x[2]) for x in parts)
             else:
-                deltas = [fulls[x[0]] * x[2] for x in parts]
+                eq = {x[0]: 1.0 for x in parts}
+            if not need_full:
+                up = torch.cat([x[3][0] * (x[2] * eq[x[0]]) for x in parts], 1)
+                down = torch.cat([x[3][1] for x in parts], 0)
+                if bal:
+                    now = _lowrank_norm(up, down)
+                    if now > 1e-12:
+                        up = up * (target / now)
+            else:
+                deltas = [fulls[x[0]] * (x[2] * eq[x[0]]) for x in parts]
                 delta = _ties(deltas, float(ties_density)) if method == "ties" and len(deltas) > 1 else sum(deltas)
+                if bal:
+                    now = float(delta.norm())
+                    if now > 1e-12:
+                        delta = delta * (target / now)
                 if delta.ndim < 2:  # biases and norms stay plain differences, no low-rank fit
                     d = delta.to(torch.bfloat16).cpu()
                     layers[key] = {"kind": "diff", "delta": d}
@@ -229,8 +251,15 @@ class LCKrea2LoRAMerge:
                     if not where:
                         outside += 1
                     continue
-                rank = sum(int(x[1].weights[1].shape[0]) for x in parts if _plain(x[1])) or 32
+                # LoKr / LoHa / full differences have no rank of their own: give them the cap, or the refit squeezes
+                # them down to the plain LoRAs' rank (a rank-16 LoRA + a LoKr kept only a sliver of the LoKr)
+                rank = MAX_RANK if any(not _plain(x[1]) for x in parts) else (
+                    sum(int(x[1].weights[1].shape[0]) for x in parts) or 32)
                 up, down = _refit(delta.reshape(delta.shape[0], -1), min(MAX_RANK, rank))
+                if bal:  # the refit drops some of a LoKr's spread-out change: land on the target size anyway
+                    now = _lowrank_norm(up, down)
+                    if now > 1e-12:
+                        up = up * (target / now)
                 del deltas, delta, fulls
             norm_m = _lowrank_norm(up, down)
             up, down = up.to(torch.bfloat16).cpu(), down.to(torch.bfloat16).cpu()
@@ -290,7 +319,7 @@ class LCAnimaLoRAMerge(LCKrea2LoRAMerge):
         return d
 
     CATEGORY = "LC ModelBuilder/Anima"
-    DESCRIPTION = ("Merges two to four Anima LoRAs with a per-block A / B curve (sum or TIES), applies the result to the "
+    DESCRIPTION = ("Merges two to four Anima LoRAs with a per-block A / B curve (sum, TIES or balanced), applies the result to the "
                    "model and outputs it for LC LoRA Save. The heatmaps show A's and B's share and the merged result.")
 
 

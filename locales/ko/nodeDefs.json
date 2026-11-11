@@ -370,7 +370,7 @@
     }
   },
   "LCKrea2LoRAMerge": {
-    "description": "Krea 2 LoRA 2~4개를 블록별 A / B 곡선(sum 또는 TIES)으로 병합하고, 결과를 모델에 적용하며, LC LoRA Save용으로 출력합니다. 히트맵은 A와 B의 비중 및 병합 결과를 보여 줍니다.",
+    "description": "Krea 2 LoRA 2~4개를 블록별 A / B 곡선(sum, TIES 또는 balanced)으로 병합하고, 결과를 모델에 적용하며, LC LoRA Save용으로 출력합니다. 히트맵은 A와 B의 비중 및 병합 결과를 보여 줍니다.",
     "inputs": {
       "model": {
         "tooltip": "Krea 2 모델. 병합된 LoRA가 LoRA 로더처럼 여기에 적용됩니다."
@@ -385,7 +385,7 @@
         "tooltip": "일반 모델 병합처럼 병합 전체를 조절하는 슬라이더 하나: 0 = LoRA A만, 1 = LoRA B만. 0.5에서는 막대가 설정한 그대로 적용되고, 0 쪽으로 갈수록 B가 모든 곳에서 약해지며, 1 쪽으로 갈수록 A가 약해집니다."
       },
       "method": {
-        "tooltip": "sum = LoRA를 정확히 더합니다(빠름). ties = 각 LoRA의 가장 강한 변화는 유지하고 서로 충돌하는 변화는 버립니다. 스타일 두 개나 캐릭터 두 개처럼 충돌하는 LoRA용. 더 느립니다(모든 전체 레이어에서 작동)."
+        "tooltip": "sum = LoRA를 정확히 더합니다(빠름). ties = 각 LoRA의 가장 강한 변화는 유지하고 서로 충돌하는 변화는 버립니다. 스타일 두 개나 캐릭터 두 개처럼 충돌하는 LoRA용. 더 느립니다(모든 전체 레이어에서 작동). balanced = 먼저 각 LoRA를 같은 세기로 맞추므로 강한 LoRA가 약한 LoRA를 묻어 버리지 않고, 병합 결과는 겹쳐 쌓이지 않고 LoRA 하나만큼의 세기가 됩니다(빠름)."
       },
       "preset": {
         "tooltip": "블록별: 0 = A만, 0.5 = 둘 다 최대 강도, 1 = B만. 그래프를 드래그하면 Custom으로 전환됩니다."
@@ -416,7 +416,7 @@
     }
   },
   "LCAnimaLoRAMerge": {
-    "description": "Anima LoRA 2~4개를 블록별 A / B 곡선(sum 또는 TIES)으로 병합하고, 결과를 모델에 적용해 LC LoRA Save용으로 출력합니다. 히트맵은 A와 B의 비중 및 병합 결과를 보여줍니다.",
+    "description": "Anima LoRA 2~4개를 블록별 A / B 곡선(sum, TIES 또는 balanced)으로 병합하고, 결과를 모델에 적용해 LC LoRA Save용으로 출력합니다. 히트맵은 A와 B의 비중 및 병합 결과를 보여줍니다.",
     "inputs": {
       "model": {
         "tooltip": "Anima 모델. 병합된 LoRA가 LoRA 로더처럼 여기에 적용됩니다."
@@ -431,7 +431,7 @@
         "tooltip": "일반 모델 병합처럼 병합 전체를 조절하는 슬라이더 하나: 0 = LoRA A만, 1 = LoRA B만. 0.5에서는 막대가 설정한 그대로 적용되고, 0 쪽으로 갈수록 B가 모든 곳에서 약해지며, 1 쪽으로 갈수록 A가 약해집니다."
       },
       "method": {
-        "tooltip": "sum = LoRA를 정확히 더합니다(빠름). ties = 각 LoRA의 가장 강한 변화는 유지하고 서로 충돌하는 변화는 버립니다. 스타일 두 개나 캐릭터 두 개처럼 충돌하는 LoRA용. 더 느립니다(모든 전체 레이어에서 작동)."
+        "tooltip": "sum = LoRA를 정확히 더합니다(빠름). ties = 각 LoRA의 가장 강한 변화는 유지하고 서로 충돌하는 변화는 버립니다. 스타일 두 개나 캐릭터 두 개처럼 충돌하는 LoRA용. 더 느립니다(모든 전체 레이어에서 작동). balanced = 먼저 각 LoRA를 같은 세기로 맞추므로 강한 LoRA가 약한 LoRA를 묻어 버리지 않고, 병합 결과는 겹쳐 쌓이지 않고 LoRA 하나만큼의 세기가 됩니다(빠름)."
       },
       "preset": {
         "tooltip": "블록별: 0 = A만, 0.5 = 둘 다 최대 강도, 1 = B만. 그래프를 드래그하면 Custom으로 전환됩니다."
