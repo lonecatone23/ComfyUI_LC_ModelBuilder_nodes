@@ -20,12 +20,12 @@ import comfy.utils
 import folder_paths
 import nodes
 
-from .lc_krea2_lora_editor import NUM_BLOCKS, LCAnimaLoRAEditor, LCKrea2LoRAEditor
+from .lc_krea2_lora_editor import NUM_BLOCKS, LCAnimaLoRAEditor, LCKrea2LoRAEditor, LCMOSSLoRAEditor
 
 FACE_DROP = 0.03  # a group counts as face lock when turning it off lowers the same-face score by this much (8-seed noise is about 0.02)
 
 
-def _groups(text: str):
+def _groups(text: str, n: int = NUM_BLOCKS):
     out = []
     for part in str(text or "").split(","):
         p = part.strip().lower()
@@ -38,7 +38,7 @@ def _groups(text: str):
             lo, hi = (int(x) for x in p.split("-")) if "-" in p else (int(p), int(p))
         except ValueError:
             continue
-        lo, hi = max(0, min(lo, hi)), min(NUM_BLOCKS - 1, max(lo, hi))
+        lo, hi = max(0, min(lo, hi)), min(n - 1, max(lo, hi))
         out.append((f"{lo}-{hi}", (lo, hi)))
     return out
 
@@ -159,15 +159,16 @@ class LCKrea2LoRABlockScan:
         if negative is None:
             negative = nodes.ConditioningZeroOut().zero_out(positive)[0]
         latent = nodes.EmptyLatentImage().generate(width, height, images)[0]
-        groups_ = _groups(groups)
+        n = self.EDITOR.ARCH.n
+        groups_ = _groups(groups, n)
         editor = self.EDITOR()
-        ones = ", ".join(["1"] * NUM_BLOCKS)
+        ones = ", ".join(["1"] * n)
         plan = [("No LoRA", None, None), ("Full LoRA", ones, 1.0)]
         for name, rng in groups_:
             if rng is None:
                 plan.append((self.OUTSIDE_LABEL, ones, off_value))
             else:
-                c = ["1"] * NUM_BLOCKS
+                c = ["1"] * n
                 for i in range(rng[0], rng[1] + 1):
                     c[i] = f"{off_value:g}"
                 plan.append((f"Blocks {name} off", ", ".join(c), 1.0))
@@ -237,7 +238,7 @@ class LCKrea2LoRABlockScan:
         # suggestion: the group whose removal frees the face most, if it clearly does
         full_face = stats[1]["face"]
         tests = stats[2:]
-        suggest = [1.0] * NUM_BLOCKS
+        suggest = [1.0] * self.EDITOR.ARCH.n
         unit = "same character (CCIP, share of pairs)" if self.FACE == "ccip" else "same face (ArcFace)"
         rep = [f"{self.TITLE}: {lora_name} at {strength:g}, {images} seeds from {seed}, change = {metric}, face = {unit}", ""]
         rep.append(f"{'row':<18}{'same face':>10}{'vs base':>10}{'vs LoRA':>10}")
@@ -318,5 +319,37 @@ class LCAnimaLoRABlockScan(LCKrea2LoRABlockScan):
                    "the blocks to turn down in LC Anima LoRA Editor. CCIP downloads once (about 150 MB).")
 
 
-NODE_CLASS_MAPPINGS = {"LCKrea2LoRABlockScan": LCKrea2LoRABlockScan, "LCAnimaLoRABlockScan": LCAnimaLoRABlockScan}
-NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRABlockScan": "LC Krea2 LoRA Block Scan", "LCAnimaLoRABlockScan": "LC Anima LoRA Block Scan"}
+class LCMOSSLoRABlockScan(LCKrea2LoRABlockScan):
+    """The Block Scan for MOSS Image: groups of its 42 layers, face lock scored with ArcFace."""
+    EDITOR = LCMOSSLoRAEditor
+    OUTSIDE_LABEL = "Outside off"
+    TITLE = "LC MOSS LoRA Block Scan"
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        d = super().INPUT_TYPES()
+        r = d["required"]
+        r["model"] = ("MODEL", {"tooltip": "MOSS Image model, without the LoRA."})
+        r["groups"] = ("STRING", {"default": "0-6, 7-13, 14-20, 21-27, 28-34, 35-41",
+                                  "tooltip": "Layer groups (of 42) to turn off one at a time, comma separated. outside = "
+                                             "the text embedder, timestep and final layer, if the LoRA has any. Each group "
+                                             "is one more row of renders."})
+        r["steps"] = ("INT", {"default": 25, "min": 1, "max": 100})
+        r["cfg"] = ("FLOAT", {"default": 3.5, "min": 0.0, "max": 30.0, "step": 0.1})
+        r["sampler_name"] = (comfy.samplers.KSampler.SAMPLERS, {"default": "er_sde"})
+        d["optional"]["negative"] = ("CONDITIONING", {"tooltip": "Optional, but MOSS at cfg above 1 wants a real negative."})
+        return d
+
+    OUTPUT_TOOLTIPS = ("One row per render set: no LoRA, full LoRA, then each group off.",
+                       "Scores per row and what they suggest.",
+                       "Suggested 42-layer curve. Wire into LC MOSS LoRA Editor's blocks_in.")
+    CATEGORY = "LC ModelBuilder/MOSS"
+    DESCRIPTION = ("Renders a fixed seed batch without the LoRA, with it, and with each layer group turned off, then "
+                   "scores face lock (same face) and change against the base model and the full LoRA. Finds the layers "
+                   "to turn down in LC MOSS LoRA Editor.")
+
+
+NODE_CLASS_MAPPINGS = {"LCKrea2LoRABlockScan": LCKrea2LoRABlockScan, "LCAnimaLoRABlockScan": LCAnimaLoRABlockScan,
+                       "LCMOSSLoRABlockScan": LCMOSSLoRABlockScan}
+NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRABlockScan": "LC Krea2 LoRA Block Scan", "LCAnimaLoRABlockScan": "LC Anima LoRA Block Scan",
+                              "LCMOSSLoRABlockScan": "LC MOSS LoRA Block Scan"}

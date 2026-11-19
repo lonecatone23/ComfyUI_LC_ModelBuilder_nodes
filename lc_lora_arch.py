@@ -12,8 +12,9 @@ NUM_BLOCKS = 28
 
 
 class Arch:
-    def __init__(self, name, title, block_re, rows, kinds, outside_name):
-        self.name = name                  # stored in the LoRA object ("krea2", "anima")
+    def __init__(self, name, title, block_re, rows, kinds, outside_name, n=NUM_BLOCKS):
+        self.n = n                        # numbered blocks (MOSS: 42 layers)
+        self.name = name                  # stored in the LoRA object ("krea2", "anima", "moss")
         self.title = title                # for notes: "is it a Krea 2 LoRA?"
         self.block_re = re.compile(block_re)
         self.rows = rows                  # [(label, module path)] in heatmap order
@@ -67,4 +68,15 @@ ANIMA = Arch(
      ("mlp.2", "mlp.layer2"), ("adaln", "adaln_modulation*")],
     ["attn"] * 8 + ["mlp"] * 2 + ["block"],
     "LLM adapter and final layer",
+)
+
+# MOSS Image: one stream, 42 layers (text and picture share them). LoRAs train proj.qkv as one layer or q / k / v as
+# slices of it (ComfyUI loads those as slices of qkv); anything else (text embedder, time, final layer) is outside.
+MOSS = Arch(
+    "moss", "MOSS Image",
+    r"(?:^|\.)layers\.(\d+)\.(proj\.\w+)\.weight$",
+    [("qkv", "proj.qkv"), ("o", "proj.o"), ("ffn.up", "proj.ffn_up_gate"), ("ffn.down", "proj.ffn_down")],
+    ["attn", "attn", "mlp", "mlp"],
+    "text embedder, timestep and final layer",
+    n=42,
 )

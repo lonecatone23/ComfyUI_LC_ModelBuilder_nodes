@@ -28,7 +28,7 @@ import folder_paths
 from comfy.weight_adapter.lora import LoRAAdapter
 
 from .lc_checkpoint_save import EMBED_WORKFLOW_INPUT, ENABLED_INPUT, METADATA_INPUT, trim_metadata, workflow_metadata
-from .lc_lora_arch import ANIMA, KREA2
+from .lc_lora_arch import ANIMA, KREA2, MOSS
 
 NUM_BLOCKS = 28
 MODULES = ["attn.wq", "attn.wk", "attn.wv", "attn.wo", "attn.gate", "mlp.gate", "mlp.up", "mlp.down"]
@@ -66,15 +66,15 @@ def _preset_curve(name: str) -> list[float] | None:
 PRESETS = ["Full", *_GROUPS, _TAME, "Custom"]
 
 
-def _parse_curve(text) -> list[float]:
+def _parse_curve(text, n=NUM_BLOCKS) -> list[float]:
     vals = []
     for part in str(text or "").replace("\n", ",").split(","):
         try:
             vals.append(float(part.strip()))
         except ValueError:
             pass
-    if len(vals) != NUM_BLOCKS:
-        vals = (vals + [1.0] * NUM_BLOCKS)[:NUM_BLOCKS]
+    if len(vals) != n:
+        vals = (vals + [1.0] * n)[:n]
     return [max(0.0, min(2.0, v)) for v in vals]
 
 
@@ -230,7 +230,7 @@ class LCKrea2LoRAEditor:
         key_map = comfy.lora.model_lora_keys_unet(model.model, {})
         patches = comfy.lora.load_lora(sd, key_map, log_missing=False)
         preset = LEGACY.get(preset, preset)
-        curve = _parse_curve(blocks_in) if blocks_in else (self.preset_curve(preset) or _parse_curve(blocks))
+        curve = _parse_curve(blocks_in, arch.n) if blocks_in else (self.preset_curve(preset) or _parse_curve(blocks, arch.n))
         soften_layers = spike_soften in ("layers", "both")
         soften_dirs = spike_soften in ("directions", "both")
         dev = comfy.model_management.get_torch_device()
@@ -319,8 +319,8 @@ class LCKrea2LoRAEditor:
             m.set_attachments("lora_metadata", meta)
 
         # 4. heatmap for the node: one row per layer type x 28 blocks, before and after
-        before = [[0.0] * NUM_BLOCKS for _ in arch.rows]
-        after = [[0.0] * NUM_BLOCKS for _ in arch.rows]
+        before = [[0.0] * arch.n for _ in arch.rows]
+        after = [[0.0] * arch.n for _ in arch.rows]
         outside = 0
         for L in layers:
             if L["where"] is None:
@@ -411,6 +411,59 @@ class LCAnimaLoRAEditor(LCKrea2LoRAEditor):
     )
 
 
+# MOSS layer groups, named after the MOSS Block Merge tests (SFT + Base): 28-41 carried most of the pose and face
+MOSS_GROUPS = {"Early layers (0-13)": (0, 13), "Mid layers: look (14-27)": (14, 27),
+               "Late layers: pose and face (28-41)": (28, 41)}
+MOSS_PRESETS = ["Full", *MOSS_GROUPS, "Custom"]
+
+
+class LCMOSSLoRAEditor(LCKrea2LoRAEditor):
+    """The LoRA Editor for MOSS Image: same edits over MOSS's 42 layers."""
+    ARCH = MOSS
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        d = super().INPUT_TYPES()
+        r = d["required"]
+        r["model"] = ("MODEL", {"tooltip": "MOSS Image model. The edited LoRA is applied to it, like a LoRA loader."})
+        r["preset"] = (MOSS_PRESETS, {"default": "Full",
+                                      "tooltip": "Full = the LoRA as it is. Each layer group preset turns those layers down to "
+                                                 "0.3. Try each on a fixed seed batch and keep the one that frees the face. "
+                                                 "Dragging the graph switches to Custom."})
+        r["blocks"] = ("STRING", {"default": ", ".join(["1"] * MOSS.n),
+                                  "tooltip": "42 layer multipliers, 0 to 2 (1 = unchanged). Drag the bars on the node."})
+        r["attention"] = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05,
+                                    "tooltip": "Multiplier for the attention layers (qkv, o) in every layer."})
+        r["mlp"] = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05,
+                              "tooltip": "Multiplier for the feed-forward layers (up-gate, down) in every layer."})
+        r["outside_blocks"] = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05,
+                                         "tooltip": "Multiplier for layers outside the 42 (text embedder, timestep, final "
+                                                    "layer), if the LoRA has any. The heatmap note says how many."})
+        d["optional"]["blocks_in"] = ("STRING", {"forceInput": True,
+                                                 "tooltip": "A 42-layer curve from another node, such as LC MOSS LoRA Block "
+                                                            "Scan's blocks output. When wired it replaces the preset and the bars."})
+        return d
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, preset=None, **kwargs):
+        return True if preset is None or preset in MOSS_PRESETS else f"unknown preset: {preset}"
+
+    @classmethod
+    def preset_curve(cls, name):
+        if name == "Full":
+            return [1.0] * MOSS.n
+        if name in MOSS_GROUPS:
+            lo, hi = MOSS_GROUPS[name]
+            return [0.3 if lo <= i <= hi else 1.0 for i in range(MOSS.n)]
+        return None
+
+    CATEGORY = "LC ModelBuilder/MOSS"
+    DESCRIPTION = (
+        "Loads a MOSS Image LoRA with per-layer, attention / MLP and spike edits, applies it to the model and outputs the "
+        "edited LoRA for LC LoRA Save. The heatmap shows each layer's strength before and after the edits."
+    )
+
+
 class LCLoRASave:
     @classmethod
     def INPUT_TYPES(cls):
@@ -427,21 +480,49 @@ class LCLoRASave:
                 "enabled": ENABLED_INPUT,
                 "embed_workflow": EMBED_WORKFLOW_INPUT,
             },
-            "optional": {"metadata": METADATA_INPUT},
+            "optional": {
+                "metadata": METADATA_INPUT,
+                "keep": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01,
+                                   "tooltip": "Rank by need: each layer gets the smallest rank that stays this close to the "
+                                              "real change (0.95 = within 5 %), so simple layers shrink and busy ones keep more. "
+                                              "0 = off. With rank set too, rank is the most any layer gets. The report shows "
+                                              "what each layer lost."}),
+            },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
 
-    RETURN_TYPES = ()
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("report",)
+    OUTPUT_TOOLTIPS = ("What was saved: ranks, how much each layer lost to the rank cut, file size.",)
     OUTPUT_NODE = True
     FUNCTION = "save"
     CATEGORY = "LC ModelBuilder/Krea2"
     DESCRIPTION = ("Saves an edited LoRA as a standard lora_A / lora_B safetensors file with every edit baked in, "
-                   "so it loads at strength 1.0 in any LoRA loader. The edit settings are stored in the metadata.")
+                   "so it loads at strength 1.0 in any LoRA loader. The edit settings are stored in the metadata. "
+                   "The file is checked (keys, shapes, no NaN) before it takes its name.")
+
+    @staticmethod
+    def _pick(s: torch.Tensor, total: float, rank: int, keep: float, default: int):
+        """How many of the singular values s to keep, and the relative error (0..1) that leaves. total = the layer's
+        full squared size (sum of all s^2, also the ones svd_lowrank did not return)."""
+        e = s.double() ** 2
+        if keep > 0:
+            # keep 0.95 = the saved layer is within 5 % of the real change (Frobenius), the same number the report shows
+            lost = (max(total, 1e-30) - torch.cumsum(e, 0)).clamp(min=0) / max(total, 1e-30)
+            r = int((lost.sqrt() > 1.0 - keep).sum()) + 1
+        else:
+            r = default
+        if rank:
+            r = min(r, rank)
+        r = max(1, min(r, s.numel()))
+        lost = max(0.0, total - float(e[:r].sum()))
+        return r, (lost / max(total, 1e-30)) ** 0.5
 
     def save(self, lora, filename, rank, dtype, enabled=True, embed_workflow=True, metadata="keep all", prompt=None,
-             extra_pnginfo=None):
+             extra_pnginfo=None, keep=0.0):
         if not enabled:
-            return {"ui": {"text": ["Save is off (enabled = false): nothing written."]}}
+            msg = "Save is off (enabled = false): nothing written."
+            return {"ui": {"text": [msg]}, "result": (msg,)}
         dt = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}[dtype]
         dev = comfy.model_management.get_torch_device()
         source = os.path.splitext(os.path.basename(lora.get("source", "lora")))[0]
@@ -456,17 +537,25 @@ class LCLoRASave:
             path, n = f"{base}_{n:02d}.safetensors", n + 1
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
+        keep = max(0.0, min(1.0, float(keep or 0.0)))
         out, converted = {}, 0
+        cuts = []  # (relative error, layer name, rank before, rank after) per low-rank layer
         for key, L in lora["layers"].items():
+            comfy.model_management.throw_exception_if_processing_interrupted()
             name = key[:-7] if key.endswith(".weight") else key
             if L["kind"] == "diff":  # a plain difference (bias or norm) from LoRA Merge
                 out[f"{key[:-5]}.diff_b" if key.endswith(".bias") else f"{name}.diff"] = L["delta"].to(dt).cpu().contiguous()
                 continue
             if L["kind"] == "lora":
                 up, down = L["up"].to(dev, torch.float32), L["down"].to(dev, torch.float32)
-                if rank and rank < up.shape[1]:
+                r0 = up.shape[1]
+                if (rank and rank < r0) or keep > 0:
                     u, s, vh = _core_svd(up, down)
-                    up, down = u[:, :rank] * s[:rank], vh[:rank]
+                    r, err = self._pick(s, float((s.double() ** 2).sum()), rank, keep, r0)
+                    up, down = u[:, :r] * s[:r], vh[:r]
+                    cuts.append((err, name, r0, r))
+                else:
+                    cuts.append((0.0, name, r0, r0))
             else:
                 ad = L["adapter"]
                 delta = self._delta(ad, key, lora)
@@ -476,24 +565,74 @@ class LCLoRASave:
                 if delta.ndim < 2:  # biases and norms are saved as plain differences
                     out[f"{key[:-5]}.diff_b" if key.endswith(".bias") else f"{name}.diff"] = delta.to(dt).cpu().contiguous()
                     continue
-                r = rank or 32
-                u, s, v = torch.svd_lowrank(delta.flatten(1), q=min(r + 8, min(delta.shape[0], delta.flatten(1).shape[1])))
+                flat = delta.flatten(1)
+                # keep: look at up to 256 directions so a busy layer can take what it needs (rank still caps it)
+                q = (rank or 256) if keep > 0 else (rank or 32)
+                q = min(q + 8, min(flat.shape))
+                u, s, v = torch.svd_lowrank(flat, q=q)
+                r, err = self._pick(s, float(flat.double().square().sum()), rank, keep, rank or 32)
                 up, down = u[:, :r] * s[:r], v[:, :r].T
+                cuts.append((err, name, None, r))
                 converted += 1
             out[f"{name}.lora_B.weight"] = up.to(dt).cpu().contiguous()
             out[f"{name}.lora_A.weight"] = down.to(dt).cpu().contiguous()
 
         meta = {k: str(v) for k, v in (lora.get("metadata") or {}).items()}
-        meta["lc_edit"] = json.dumps({"source": lora.get("source"), **lora.get("edit", {}), "rank": rank})
+        meta["lc_edit"] = json.dumps({"source": lora.get("source"), **lora.get("edit", {}), "rank": rank, "keep": keep})
         if embed_workflow:
             meta.update(workflow_metadata(prompt, extra_pnginfo))
         meta = trim_metadata(meta, metadata)
-        comfy.utils.save_torch_file(out, path, metadata=meta)
+        self._write_checked(out, path, meta)
+
         n_layers = sum(1 for k in out if k.endswith((".lora_B.weight", ".diff", ".diff_b")))
-        msg = f"Saved {os.path.relpath(path, root)} ({n_layers} layers"
-        msg += f", {converted} converted to rank {rank or 32})" if converted else ")"
-        print(f"[LC Modelbuilder] {msg}")
-        return {"ui": {"text": [msg]}}
+        mb = os.path.getsize(path) / 2 ** 20
+        msg = f"Saved {os.path.relpath(path, root)} ({n_layers} layers, {mb:.0f} MB"
+        msg += f", {converted} converted to low rank)" if converted else ")"
+        rep = [msg]
+        if cuts:
+            ranks = [c[3] for c in cuts]
+            before = [c[2] for c in cuts if c[2] is not None]
+            line = f"rank {min(ranks)}-{max(ranks)}, average {sum(ranks) / len(ranks):.0f}"
+            if any(c[2] is not None and c[2] != c[3] for c in cuts):
+                line += f" (was {min(before)}-{max(before)}, average {sum(before) / len(before):.0f})"
+            rep.append(line)
+            errs = sorted(cuts, reverse=True)
+            mean = sum(c[0] for c in cuts) / len(cuts)
+            if errs[0][0] > 1e-4:
+                rep.append(f"lost to the rank cut: average {100 * mean:.1f} %, worst {100 * errs[0][0]:.1f} %")
+                rep.append("worst layers: " + ", ".join(f"{c[1].replace('diffusion_model.', '')} {100 * c[0]:.0f} %"
+                                                        for c in errs[:3]))
+                if errs[0][0] > 0.3:
+                    rep.append("Over 30 % lost in some layers: raise rank or keep if the saved LoRA looks weaker than the live one.")
+            else:
+                rep.append("nothing lost: every layer kept its full rank")
+        report = "\n".join(rep)
+        print(f"[LC Modelbuilder] {report}")
+        return {"ui": {"text": [report]}, "result": (report,)}
+
+    @staticmethod
+    def _write_checked(out, path, meta):
+        """Write to a temp file, read it back (every key, shape, no NaN / inf), then give it its name. A failed or
+        interrupted save never leaves a half-written LoRA in models/loras."""
+        from safetensors import safe_open
+
+        tmp = path + ".lc_tmp"
+        try:
+            comfy.utils.save_torch_file(out, tmp, metadata=meta)
+            with safe_open(tmp, "pt") as f:
+                keys = set(f.keys())
+                if keys != set(out):
+                    raise RuntimeError(f"LC LoRA Save: the written file has {len(keys)} tensors, expected {len(out)}")
+                for k in keys:
+                    t = f.get_tensor(k)
+                    if tuple(t.shape) != tuple(out[k].shape):
+                        raise RuntimeError(f"LC LoRA Save: {k} came back as {tuple(t.shape)}, expected {tuple(out[k].shape)}")
+                    if not torch.isfinite(t.float()).all():
+                        raise RuntimeError(f"LC LoRA Save: {k} has NaN or inf values (fp16 overflow? try bf16)")
+            os.replace(tmp, path)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
 
     @staticmethod
     def _delta(adapter, key, lora):
@@ -507,6 +646,6 @@ class LCLoRASave:
 
 
 NODE_CLASS_MAPPINGS = {"LCKrea2LoRAEditor": LCKrea2LoRAEditor, "LCLoRASave": LCLoRASave,
-                       "LCAnimaLoRAEditor": LCAnimaLoRAEditor}
+                       "LCAnimaLoRAEditor": LCAnimaLoRAEditor, "LCMOSSLoRAEditor": LCMOSSLoRAEditor}
 NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRAEditor": "LC Krea2 LoRA Editor", "LCLoRASave": "LC LoRA Save",
-                              "LCAnimaLoRAEditor": "LC Anima LoRA Editor"}
+                              "LCAnimaLoRAEditor": "LC Anima LoRA Editor", "LCMOSSLoRAEditor": "LC MOSS LoRA Editor"}

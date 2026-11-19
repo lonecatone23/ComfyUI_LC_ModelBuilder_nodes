@@ -14,7 +14,7 @@ Model and checkpoint merging tools by lonecatone23. Companion pack to [ComfyUI_L
 | LC Diffusion Model Save | Same as LC Checkpoint Save but model-only — no clip/vae sockets at all. |
 | LC Face Variety Scorer 🧑‍🤝‍🧑 | Same-face test for a model. Scores how different the faces in an image batch are (0.0 - 1.0, lower = more variety), plus a group-shot score and a grid of the faces it found. Photo (ArcFace) or anime (CCIP) mode. |
 | LC Krea2 LoRA Editor | 🧪 **BETA, still in testing.** Load a Krea 2 LoRA with each of the 28 blocks turned up or down, attention and MLP scaled separately, and spikes softened. Patches the model like a LoRA loader and outputs the edited LoRA. For face lock and for LoRAs that change the whole image. |
-| LC LoRA Save | 🧪 **BETA, still in testing.** Saves an edited LoRA as a standard file with every edit baked in, optionally at a new rank. |
+| LC LoRA Save | 🧪 **BETA, still in testing.** Saves an edited LoRA as a standard file with every edit baked in, optionally at a new rank or a rank per layer by need, with a report of what the rank cut lost. |
 | LC Krea2 LoRA Block Scan | 🧪 **BETA, still in testing.** Finds where a LoRA locks the face or changes the whole image: renders a seed batch with each block group turned off, scores every row, and suggests a block curve for the Editor. |
 | LC Krea2 LoRA Merge | 🧪 **BETA, still in testing.** Merges two to four Krea 2 LoRAs with a per-block A / B curve (sum, TIES or balanced), applies the result like a LoRA loader and outputs it for LC LoRA Save. |
 | LC LoRA Bake 🍞 | Bakes up to 4 LoRAs into a model and saves it as a new model file, with a per-block strength curve. Reads every LoRA format ComfyUI reads. The recipe goes into the file's metadata. |
@@ -29,6 +29,7 @@ Model and checkpoint merging tools by lonecatone23. Companion pack to [ComfyUI_L
 | LC VAE Compare | Decodes the same latents with up to six VAEs, side by side with a 1:1 detail crop, a sharpness number and how far each lands from the first. |
 | LC LoRA Extract | Turns a finetune into a LoRA: finetuned minus its base, all layers, blocks only or a custom block list. Unchanged layers are left out of the file. |
 | LC Anima LoRA Editor / Block Scan / Merge | 🧪 **BETA, still in testing.** The three Krea 2 LoRA tools for Anima: same controls, Anima's 28 blocks and layer types. The Block Scan scores anime faces with CCIP. |
+| LC MOSS LoRA Editor / Block Scan / Merge | 🧪 **BETA, still in testing.** The three Krea 2 LoRA tools for MOSS Image: its 42 layers, and q / k / v LoRAs joined into qkv. |
 | LC Scoreboard 🏆 | Head-to-head counter for A / B tests: #1 Win / Tie / #2 Win buttons, a reset, and the leader and percentages shown on the node. |
 
 ### LC Krea2 Block Merge Advanced
@@ -112,9 +113,12 @@ Tested on Better Lip Bite, which both locks the face and changes the whole image
 - **Face from B**: put the main LoRA (body, style) in A and the face LoRA in B. B gets the window, A the rest. Where a LoRA keeps its face changes from LoRA to LoRA, so these are starting points: move the bars, or wire **LC Krea2 LoRA Block Scan**'s curve into **blocks_in**.
 - **lora_c / lora_d** (optional): a third and fourth LoRA at their own strength in every block (not on the bars).
 - Heatmaps: LoRA A's share, LoRA B's share and the merged result, per layer and block.
+- **A vs B** map: where the two LoRAs change the same thing. Bright = they share that layer's directions, **green** = they push the same way there (stacking doubles it), **red** = against (they cancel). The note under the maps counts the layers and names the blocks.
+    - Two LoRAs trained apart almost never share weights, even two realism LoRAs, so the map is mostly dark. That does not mean they can't overcook: two looks that push the picture the same way still pile up.
+    - It lights up for related LoRAs: two versions of one training, or LoRAs made from the same model (Krealistick Turbo + Raw = the same change twice). 💡 Bright green = you are stacking one LoRA twice: use **balanced** or drop one. Bright red = they undo each other there: use **ties** or the bars.
 - 💡 Two LoRAs stacked in two loaders and the same two merged with **sum** give the same picture, but not bit for bit: one combined patch rounds slightly differently from two separate ones.
 
-**LC LoRA Save** writes the edited LoRA to `models/loras` (`%source%` in the filename = the original LoRA's name, a number is added if the file exists) with every edit and the strength baked in, so it loads at 1.0 in any LoRA loader. Saving and reloading gives the same image as the Editor. `rank` 0 keeps each layer's rank; any other number re-fits every layer to that rank. LoRAs in other formats (LoKr, LoHa) are edited per layer and converted to lora_A / lora_B when saved. The edit settings go into the file's metadata. Same **enabled** and **embed_workflow** switches as LC Checkpoint Save (see below): off skips the save, and embed_workflow controls whether your graph goes into the file.
+**LC LoRA Save** writes the edited LoRA to `models/loras` (`%source%` in the filename = the original LoRA's name, a number is added if the file exists) with every edit and the strength baked in, so it loads at 1.0 in any LoRA loader. Saving and reloading gives the same image as the Editor. `rank` 0 keeps each layer's rank; any other number re-fits every layer to that rank. **keep** (0 = off) picks the rank per layer instead: each layer gets the smallest rank that stays within (1 - keep) of the real change, so **0.95** = within 5 %. Simple layers shrink, busy ones keep more; with `rank` set too, `rank` is the cap. On a Krea 2 merge (rank 64), keep 0.95 made the file 19 % smaller and looked the same as the live merge, while a flat rank 16 moved the background. The **report** output (also on the node) lists the ranks, what each layer lost and the file size, and warns when a layer lost over 30 %. The file is written to a temporary name, read back (every tensor, shape and no NaN), and only then gets its real name, so a failed save never leaves a broken LoRA behind. LoRAs in other formats (LoKr, LoHa) are edited per layer and converted to lora_A / lora_B when saved. The edit settings go into the file's metadata. Same **enabled** and **embed_workflow** switches as LC Checkpoint Save (see below): off skips the save, and embed_workflow controls whether your graph goes into the file.
 
 ### LC Anima LoRA Editor / LC Anima LoRA Block Scan / LC Anima LoRA Merge
 
@@ -125,6 +129,15 @@ Tested on Better Lip Bite, which both locks the face and changes the whole image
 - **Block Scan** scores face lock with **CCIP**, a model made for anime characters (photo face models miss on anime), on each image's main face. The score is the share of seed pairs CCIP calls the same character: about 0.1 to 0.2 for the base model, 1.0 for a LoRA that draws one person every time. Noise is about 0.15 at 8 seeds. The models download once to `models/ccip/` (about 200 MB, checksum-verified).
 - Defaults follow Anima: 30 steps, cfg 4.5, er_sde, 896 x 1152. Wire a real negative.
 - ⚠️ On a LoRA that bakes one face into every layer (like a style LoRA trained on one person), no single block group frees it. Turn several down a little, or remove the face LoRA itself with LoRA Merge at a negative strength.
+
+### LC MOSS LoRA Editor / LC MOSS LoRA Block Scan / LC MOSS LoRA Merge
+
+🧪 **BETA, still in testing.** The same three tools for MOSS Image LoRAs, and LC LoRA Save saves their output too. What differs:
+
+- **42 layers** instead of 28 blocks. Rows: **qkv**, **o** (attention), **ffn.up**, **ffn.down** (feed-forward).
+- LoRAs that train **q / k / v** separately (e.g. CAOTICA) are joined into one qkv layer, exactly (merging one with "A only" gives the same picture as a LoRA loader).
+- **Editor presets**: **Early layers (0-13)**, **Mid layers: look (14-27)**, **Late layers: pose and face (28-41)**, each at 0.3. The groups come from the MOSS Block Merge tests, where 28-41 carried most of the pose and face.
+- **Block Scan** defaults follow MOSS: 25 steps, cfg 3.5, er_sde, groups of 7 layers. Wire a real negative.
 
 ### LC MOSS Block Merge Advanced
 

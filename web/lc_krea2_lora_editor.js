@@ -1,13 +1,17 @@
-// LC Krea2 LoRA Editor and LC Krea2 LoRA Merge: 28 draggable block bars and heatmaps (8 layer rows x 28 blocks)
+// LC Krea2 / Anima / MOSS LoRA Editor and LoRA Merge: draggable block bars (28 blocks, MOSS 42 layers) and heatmaps
 // filled in after each run. One DOM canvas, so it looks the same in Nodes classic and Nodes 2.0.
 //   Editor: bars 0..2 (1 = unchanged) over the LoRA's own strength per block; heatmaps before / after.
-//   Merge : bars 0..1 (0 = LoRA A only, 0.5 = both full, 1 = LoRA B only); heatmaps A, B and merged.
+//   Merge : bars 0..1 (0 = LoRA A only, 0.5 = both full, 1 = LoRA B only); heatmaps A, B, merged, and A vs B
+//           (green = they pull the same way, red = they fight, brightness = how much both change that layer).
 import { app } from "../../scripts/app.js";
 
 const N = 28;
 const ROWS = ["q", "k", "v", "o", "gate", "m.gate", "m.up", "m.down"];
 const ANIMA_ROWS = ["sa.q", "sa.k", "sa.v", "sa.o", "ca.q", "ca.k", "ca.v", "ca.o", "mlp.1", "mlp.2", "adaln"];
+const MOSS_ROWS = ["qkv", "o", "ffn.up", "ffn.down"];
+const nOf = (node) => node._lcCfg?.n || N;
 const H_BARS = 240;
+const MIN_W = 380;
 const CELL_H = 9;
 const hTotal = (cfg) => H_BARS + 22 + cfg.maps * ((cfg.rows || ROWS).length * CELL_H + 14) + 18;
 
@@ -43,7 +47,7 @@ const CFG = {
     },
   },
   LCKrea2LoRAMerge: {
-    max: 1, rest: 0.5, ticks: ["B", "both", "A"], dividers: [14], maps: 3, backdrop: false,
+    max: 1, rest: 0.5, ticks: ["B", "both", "A"], dividers: [14], maps: 4, backdrop: false,
     low: "rgba(120,170,255,0.75)", high: "rgba(255,150,80,0.8)",
     // Mirrors PRESETS in lc_krea2_lora_merge.py
     preset(name) {
@@ -59,6 +63,38 @@ const CFG = {
 };
 // Anima Merge: Krea Merge's bars with Anima's rows and presets (mirrors ANIMA_PRESETS in lc_krea2_lora_merge.py)
 CFG.LCAnimaLoRAMerge = { ...CFG.LCKrea2LoRAMerge, rows: ANIMA_ROWS };
+// MOSS: 42 layers. Editor groups mirror MOSS_GROUPS in lc_krea2_lora_editor.py, Merge presets MOSS_PRESETS (_basic)
+CFG.LCMOSSLoRAEditor = {
+  ...CFG.LCAnimaLoRAEditor, n: 42, dividers: [14, 28], rows: MOSS_ROWS,
+  preset(name) {
+    const n = 42;
+    if (name === "Full") return new Array(n).fill(1);
+    const m = /\((\d+)-(\d+)\)$/.exec(name || "");
+    if (!m) return null;
+    const lo = +m[1], hi = +m[2];
+    return Array.from({ length: n }, (_, i) => (i >= lo && i <= hi ? 0.3 : 1));
+  },
+};
+CFG.LCMOSSLoRAMerge = {
+  ...CFG.LCKrea2LoRAMerge, n: 42, dividers: [21], rows: MOSS_ROWS,
+  preset(name) {
+    const n = 42, f = (fn) => Array.from({ length: n }, (_, i) => fn(i));
+    return {
+      "Both full": f(() => 0.5), "A early, B late": f((i) => (i < 21 ? 0 : 1)), "B early, A late": f((i) => (i < 21 ? 1 : 0)),
+      "A only": f(() => 0), "B only": f(() => 1),
+    }[name] || null;
+  },
+};
+
+function conflictColor(dir, t) {
+  // green = same way, red = against, grey = shared but neither; t (0..1) = how much they change the same thing
+  const c = Math.max(-1, Math.min(1, dir));
+  const k = 0.12 + 0.88 * Math.max(0, Math.min(1, t));
+  const base = c >= 0 ? [90, 210, 110] : [240, 80, 65];
+  const a = Math.min(1, Math.abs(c) * 1.5);
+  const mixc = (i) => Math.round((150 + (base[i] - 150) * a) * k);
+  return `rgb(${mixc(0)},${mixc(1)},${mixc(2)})`;
+}
 
 const W = (node, name) => (node.widgets || []).find((w) => w.name === name);
 
@@ -68,6 +104,7 @@ function wired(node) {
 }
 
 function curveOf(node) {
+  const N = nOf(node);
   if (wired(node) && node._lcMap?.curve?.length === N) return node._lcMap.curve;
   const v = String(W(node, "blocks")?.value ?? "")
     .split(",")
@@ -100,6 +137,7 @@ function draw(node) {
   const ui = node._lcLE;
   if (!ui) return;
   const cfg = node._lcCfg;
+  const N = nOf(node);
   const H_TOTAL = hTotal(cfg);
   const cv = ui.canvas;
   const dpr = window.devicePixelRatio || 1;
@@ -173,7 +211,7 @@ function draw(node) {
 
   // heatmaps
   let y = H_BARS + 10;
-  const drawMap = (label, m, mx) => {
+  const drawMap = (label, m, mx, cell) => {
     ctx.textAlign = "left";
     ctx.fillStyle = "rgba(255,255,255,0.6)";
     ctx.font = "9px sans-serif";
@@ -185,16 +223,27 @@ function draw(node) {
       ctx.font = "8px sans-serif";
       ctx.fillText(name, L - 4, y + r * CELL_H + 7);
       for (let b = 0; b < N; b++) {
-        const v = m ? m[r][b] : 0;
-        ctx.fillStyle = m ? heat(Math.sqrt(v / mx)) : "rgba(255,255,255,0.05)";
+        const v = m ? m[r]?.[b] ?? 0 : 0;
+        ctx.fillStyle = !m ? "rgba(255,255,255,0.05)" : cell ? cell(r, b) : heat(Math.sqrt(v / mx));
         ctx.fillRect(L + b * bw + 0.5, y + r * CELL_H + 0.5, bw - 1, CELL_H - 1);
       }
     });
     y += rowsOf(node).length * CELL_H + 4;
   };
   const mx = maps ? Math.max(1e-9, ...maps.flatMap(([, m]) => m.flat())) : 1;
-  const labels = cfg.maps === 3 ? ["LoRA A", "LoRA B", "merged"] : ["before", "after (same scale)"];
-  for (let i = 0; i < cfg.maps; i++) drawMap(maps ? maps[i][0] : labels[i], maps ? maps[i][1] : null, mx);
+  const labels = cfg.maps >= 3 ? ["LoRA A", "LoRA B", "merged"] : ["before", "after (same scale)"];
+  for (let i = 0; i < Math.min(cfg.maps, 3); i++) drawMap(maps ? maps[i][0] : labels[i], maps ? maps[i][1] : null, mx);
+  if (cfg.maps === 4) {
+    // brightness = how much A and B change the same thing (0.3 shared = full), color = same way / against there
+    const cf = map?.conflict?.ov ? map.conflict : null;
+    const cell = cf
+      ? (r, b) => {
+          const ov = cf.ov[r]?.[b] ?? 0;
+          return ov > 0 ? conflictColor(cf.dir[r][b], Math.sqrt(Math.min(1, ov / 0.3))) : "rgba(255,255,255,0.05)";
+        }
+      : null;
+    drawMap("A vs B: bright = same thing changed, green = same way, red = against", cf ? cf.ov : null, 1, cell);
+  }
   ctx.textAlign = "left";
   ctx.fillStyle = "rgba(255,255,255,0.65)";
   ctx.font = "10px sans-serif";
@@ -211,6 +260,7 @@ function blockAt(node, ev) {
   const L = 40, gw = (cv.clientWidth || 300) - L - 6;
   if (y > H_BARS || x < L || x > L + gw) return null;
   const mxv = node._lcCfg.max;
+  const N = nOf(node);
   return { b: Math.max(0, Math.min(N - 1, Math.floor(((x - L) / gw) * N))), v: Math.max(0, Math.min(mxv, mxv * (1 - (y - 6) / (H_BARS - 12)))) };
 }
 
@@ -230,11 +280,14 @@ function setup(node, cfg) {
   wrap.style.cssText = `width:100%;height:${H_TOTAL}px;`;
   wrap.appendChild(canvas);
   node._lcLE = { canvas, hover: -1, drag: -1 };
-  node.addDOMWidget("lc_lora_graph", "lc_lora_graph", wrap, {
+  const gw = node.addDOMWidget("lc_lora_graph", "lc_lora_graph", wrap, {
     serialize: false,
     getMinHeight: () => H_TOTAL,
     getMaxHeight: () => H_TOTAL,
   });
+  // the option alone still saved an empty value: with it, the saved count matched the frontend's old-save cleanup
+  // (widgets + the forceInput blocks_in) and it dropped a value, shifting lora_c / strength_c / lora_d / strength_d
+  if (gw) gw.serialize = false;
 
   const put = (hit, ev) => {
     const vals = curveOf(node);
@@ -320,7 +373,7 @@ app.registerExtension({
     nodeType.prototype.onNodeCreated = function () {
       const r = onCreated?.apply(this, arguments);
       setup(this, cfg);
-      if (this.size[0] < 380) this.setSize?.([380, this.size[1]]);
+      if (this.size[0] < MIN_W) this.setSize?.([MIN_W, this.size[1]]);
       // the first size is taken before the DOM widget counts: grow to fit once it does
       requestAnimationFrame(() => {
         const need = this.computeSize?.()?.[1];
@@ -328,11 +381,33 @@ app.registerExtension({
       });
       return r;
     };
+    // workflows saved with the graph's empty value: drop it before the frontend's cleanup miscounts and shifts values
+    const configure = nodeType.prototype.configure;
+    nodeType.prototype.configure = function (info) {
+      const vals = info?.widgets_values;
+      const gi = (this.widgets || []).findIndex((w) => w.name === "lc_lora_graph");
+      if (Array.isArray(vals) && gi >= 0 && vals.length === this.widgets.length && vals[gi] === "") {
+        info.widgets_values = vals.filter((_, i) => i !== gi);
+      }
+      return configure.apply(this, arguments);
+    };
+    // never narrower than MIN_W: below it the pickers cut off and the bars and maps get too thin to use
+    const onResize = nodeType.prototype.onResize;
+    nodeType.prototype.onResize = function (size) {
+      if (size && size[0] < MIN_W) size[0] = MIN_W;
+      return onResize?.apply(this, arguments);
+    };
     const onConfigure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function () {
       const r = onConfigure?.apply(this, arguments);
+      if (this.size[0] < MIN_W) this.size[0] = MIN_W; // saved narrower before the lock
       const p = W(this, "preset");
       if (p && cfg.legacy?.[p.value]) p.value = cfg.legacy[p.value];
+      // saved before the A vs B map existed: grow once so the new map is not cut off
+      requestAnimationFrame(() => {
+        const need = this.computeSize?.()?.[1];
+        if (need && this.size[1] < need) this.setSize([this.size[0], need]);
+      });
       setTimeout(() => draw(this), 50);
       return r;
     };

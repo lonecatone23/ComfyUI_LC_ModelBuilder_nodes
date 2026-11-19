@@ -30,9 +30,16 @@ import comfy.model_management
 import folder_paths
 from comfy.weight_adapter.lora import LoRAAdapter
 
-from .lc_krea2_lora_editor import (NUM_BLOCKS, _key_of, _load_lora_file, _lora_scale, _lowrank_norm, _parse_curve,
+from .lc_krea2_lora_editor import (NUM_BLOCKS, _core_svd, _key_of, _load_lora_file, _lora_scale, _lowrank_norm, _parse_curve,
                                    _plain)
-from .lc_lora_arch import ANIMA, KREA2
+from .lc_lora_arch import ANIMA, KREA2, MOSS
+
+
+def _basic(n: int) -> dict:
+    h = n // 2
+    return {"Both full": [0.5] * n, "A early, B late": [0.0 if i < h else 1.0 for i in range(n)],
+            "B early, A late": [1.0 if i < h else 0.0 for i in range(n)], "A only": [0.0] * n, "B only": [1.0] * n}
+
 
 def _face(lo: int, hi: int) -> list[float]:
     """B inside the window, A outside, with a block at 'both full' on each side so the hand-over is not a cliff."""
@@ -40,11 +47,7 @@ def _face(lo: int, hi: int) -> list[float]:
 
 
 PRESETS = {
-    "Both full": [0.5] * NUM_BLOCKS,
-    "A early, B late": [0.0 if i < 14 else 1.0 for i in range(NUM_BLOCKS)],
-    "B early, A late": [1.0 if i < 14 else 0.0 for i in range(NUM_BLOCKS)],
-    "A only": [0.0] * NUM_BLOCKS,
-    "B only": [1.0] * NUM_BLOCKS,
+    **_basic(NUM_BLOCKS),
     "Face from B (8-20)": _face(8, 20),
     "Face from B (4-13)": _face(4, 13),
     "Face from B (16-21)": _face(16, 21),
@@ -58,8 +61,75 @@ def _weights(c: float):
     return min(1.0, 2.0 * (1.0 - c)), min(1.0, 2.0 * c)
 
 
-def _parse01(text):
-    return [max(0.0, min(1.0, v)) for v in _parse_curve(text)]
+def _parse01(text, n=NUM_BLOCKS):
+    return [max(0.0, min(1.0, v)) for v in _parse_curve(text, n)]
+
+
+def _widen(entries, rows_cols):
+    """Slice LoRAs (q / k / v trained as parts of one fused qkv layer) -> one plain LoRA over the whole layer: each
+    slice's up (or down) padded with zeros outside its slice, the slices stacked. None when it can't be done."""
+    ups, downs = [], []
+    rows, cols = rows_cols
+    for off, ad in entries:
+        if not _plain(ad) or off is None or len(off) != 3:
+            return None
+        dim, start, size = off
+        up = ad.weights[0].float() * _lora_scale(ad)
+        down = ad.weights[1].float()
+        if dim == 0 and down.shape[1] == cols and up.shape[0] == size:
+            full = torch.zeros(rows, up.shape[1])
+            full[start:start + size] = up
+            ups.append(full)
+            downs.append(down)
+        elif dim == 1 and up.shape[0] == rows and down.shape[1] == size:
+            full = torch.zeros(down.shape[0], cols)
+            full[:, start:start + size] = down
+            ups.append(up)
+            downs.append(full)
+        else:
+            return None
+    return LoRAAdapter(set(), (torch.cat(ups, 1), torch.cat(downs, 0), None, None, None, None))
+
+
+def _inner(a, b, key, shape, dev):
+    """<delta A, delta B> and both sizes, for the conflict map. Plain LoRAs never build the full matrix."""
+    """How A and B meet in one layer: (overlap 0..1, direction -1..1, size of A, size of B).
+    Two LoRAs trained apart are almost at right angles in weight space (cosine ~0 even for two realism LoRAs), so a
+    plain cosine says nothing. What matters is the part of each change that lands in the other's directions (in and
+    out): overlap = that share (two random rank-32 LoRAs share ~0.001, a LoRA with itself 1). direction = cosine
+    inside the shared part: + = they push the same way there (stacking doubles it), - = against (they cancel)."""
+    def basis(ad, shp):
+        lr = _lowrank(ad, key, None, dev)
+        if lr is not None:
+            u, s, vh = _core_svd(*lr)
+            return u, s, vh.T
+        if shp is None or len(shp) < 2:
+            return None
+        d = _full(ad, key, shp, dev).reshape(shp[0], -1)
+        q = min(40, min(d.shape))
+        cuda = [d.device.index or 0] if d.device.type == "cuda" else []
+        with torch.random.fork_rng(devices=cuda):
+            torch.manual_seed(0)
+            u, s, v = torch.svd_lowrank(d, q=q, niter=2)
+        k = min(32, q)
+        return u[:, :k], s[:k], v[:, :k]
+
+    ba, bb = basis(a, shape), basis(b, shape)
+    if ba is None or bb is None:
+        return None
+    (ua, sa, va), (ub, sb, vb) = ba, bb
+    ea, eb = float((sa ** 2).sum()), float((sb ** 2).sum())
+    if ea < 1e-24 or eb < 1e-24:
+        return None
+    m_out, m_in = ua.T @ ub, va.T @ vb          # how A's directions line up with B's, out and in
+    x = m_out * sb[None, :] @ m_in.T             # B's change seen inside A's directions
+    y = m_out.T * sa[None, :] @ m_in             # A's change seen inside B's directions
+    nx, ny = float(x.norm()), float(y.norm())
+    overlap = 0.5 * (nx * nx / eb + ny * ny / ea)
+    dot = float((sa * x.diagonal()).sum())       # <A, B> = trace(diag(sa) x)
+    den = (nx * ea ** 0.5 * ny * eb ** 0.5) ** 0.5
+    direction = dot / den if den > 1e-24 else 0.0
+    return overlap, max(-1.0, min(1.0, direction)), ea ** 0.5, eb ** 0.5
 
 
 def _lowrank(adapter, key, shapes, dev):
@@ -126,35 +196,45 @@ class LCKrea2LoRAMerge:
         return {
             "required": {
                 "model": ("MODEL", {"tooltip": "Krea 2 model. The merged LoRA is applied to it, like a LoRA loader."}),
-                "lora_a": (loras, {"tooltip": "LoRA A, from models/loras."}),
-                "lora_b": (loras, {"tooltip": "LoRA B, from models/loras."}),
-                "strength_a": ("FLOAT", {"default": 1.0, "min": -4.0, "max": 4.0, "step": 0.05}),
-                "strength_b": ("FLOAT", {"default": 1.0, "min": -4.0, "max": 4.0, "step": 0.05}),
+                "lora_a": (loras, {"tooltip": "LoRA A: the main LoRA (body, style). Bars at 0 = only this one."}),
+                "lora_b": (loras, {"tooltip": "LoRA B: the one you want part of (a face, a look). Bars at 1 = only this one."}),
+                "strength_a": ("FLOAT", {"default": 1.0, "min": -4.0, "max": 4.0, "step": 0.05,
+                               "tooltip": "A's strength before the merge, like a LoRA loader. Applies in every block, "
+                                          "then the bars split it."}),
+                "strength_b": ("FLOAT", {"default": 1.0, "min": -4.0, "max": 4.0, "step": 0.05,
+                               "tooltip": "B's strength before the merge, like a LoRA loader. Applies in every block, "
+                                          "then the bars split it."}),
                 "mix": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01,
-                        "tooltip": "One slider for the whole merge, like a plain model merge: 0 = only LoRA A, 1 = only "
-                                   "LoRA B. At 0.5 the bars apply as set; toward 0 B fades out everywhere, toward 1 A does."}),
+                        "tooltip": "One slider for the whole merge. 0.5 = the bars as set. Toward 0 fades B out "
+                                   "everywhere (0.25 = A full, B at half), toward 1 fades A out."}),
                 "method": (["sum", "ties", "balanced"], {"default": "sum",
-                           "tooltip": "sum = the LoRAs added, exactly (fast). ties = keeps each LoRA's strongest changes and "
-                                      "drops the ones that fight each other: for LoRAs that clash, e.g. two styles or "
-                                      "two characters. Slower (works on every full layer). balanced = each LoRA brought "
-                                      "to the same size first, so a loud one can't drown a quiet one, and the merge "
-                                      "comes out as strong as one LoRA instead of stacking (fast)."}),
+                           "tooltip": "sum: both added, exactly. Same picture as two LoRA loaders. Start here.\n"
+                                      "balanced: each LoRA brought to the same size first, so a loud one can't drown a "
+                                      "quiet one. Use it when the two overcook together.\n"
+                                      "ties: keeps each LoRA's strongest changes and drops the ones that fight. For two "
+                                      "styles or two characters that clash. Slower."}),
                 "preset": (PRESET_NAMES, {"default": "Both full",
-                           "tooltip": "Per block: 0 = only A, 0.5 = both at full strength, 1 = only B. Dragging the "
-                                      "graph switches to Custom."}),
+                           "tooltip": "Starting curve. Face from B (x-y) = B inside those blocks, A outside. Where a "
+                                      "LoRA keeps its face differs per LoRA: check the LoRA B heatmap. Dragging a bar "
+                                      "switches to Custom."}),
                 "blocks": ("STRING", {"default": ", ".join(["0.5"] * NUM_BLOCKS),
-                                      "tooltip": "28 block values, 0 (A) to 1 (B). Drag the bars on the node."}),
+                                      "tooltip": "28 block values: 0 = only A, 0.5 = both full, 1 = only B. Drag the bars on the node."}),
                 "ties_density": ("FLOAT", {"default": 0.5, "min": 0.05, "max": 1.0, "step": 0.05,
-                                 "tooltip": "ties only: share of each LoRA's changes that is kept (its strongest). "
-                                            "Lower = only the most important changes survive."}),
+                                 "tooltip": "ties only: how much of each LoRA survives (its strongest changes). 0.5 is a "
+                                            "good start. Lower = only the most important changes."}),
             },
             "optional": {
                 "blocks_in": ("STRING", {"forceInput": True,
-                                         "tooltip": "A 28-block curve from another node. When wired it replaces the preset and the bars."}),
-                "lora_c": (extra, {"default": "None", "tooltip": "Optional third LoRA, at strength_c in every block (not on the curve)."}),
-                "strength_c": ("FLOAT", {"default": 1.0, "min": -4.0, "max": 4.0, "step": 0.05}),
-                "lora_d": (extra, {"default": "None", "tooltip": "Optional fourth LoRA, at strength_d in every block (not on the curve)."}),
-                "strength_d": ("FLOAT", {"default": 1.0, "min": -4.0, "max": 4.0, "step": 0.05}),
+                                         "tooltip": "A 28-block curve from another node. When wired it replaces the preset "
+                                                    "and the bars. Dragging a bar unplugs it."}),
+                "lora_c": (extra, {"default": "None", "tooltip": "Optional third LoRA at strength_c in every block, not on "
+                                                                 "the bars. Good for a detail or lighting LoRA."}),
+                "strength_c": ("FLOAT", {"default": 1.0, "min": -4.0, "max": 4.0, "step": 0.05,
+                               "tooltip": "lora_c's strength, the same in every block."}),
+                "lora_d": (extra, {"default": "None", "tooltip": "Optional fourth LoRA at strength_d in every block, not on "
+                                                                 "the bars."}),
+                "strength_d": ("FLOAT", {"default": 1.0, "min": -4.0, "max": 4.0, "step": 0.05,
+                               "tooltip": "lora_d's strength, the same in every block."}),
             },
         }
 
@@ -164,7 +244,8 @@ class LCKrea2LoRAMerge:
     FUNCTION = "merge"
     CATEGORY = "LC ModelBuilder/Krea2"
     DESCRIPTION = ("Merges two to four Krea 2 LoRAs with a per-block A / B curve (sum, TIES or balanced), applies the result to the "
-                   "model and outputs it for LC LoRA Save. The heatmaps show A's and B's share and the merged result.")
+                   "model and outputs it for LC LoRA Save. The heatmaps show A's and B's share, the merged result, and where A and B "
+                   "agree or fight.")
 
     ARCH = KREA2
     PRESET_TABLE = PRESETS
@@ -173,14 +254,34 @@ class LCKrea2LoRAMerge:
               blocks_in=None, lora_c="None", strength_c=1.0, lora_d="None", strength_d=1.0, **_old):
         # _old: settings from earlier saves that no longer exist (balance)
         arch = self.ARCH
-        curve = _parse01(blocks_in) if blocks_in else (self.PRESET_TABLE.get(preset) or _parse01(blocks))
+        curve = _parse01(blocks_in, arch.n) if blocks_in else (self.PRESET_TABLE.get(preset) or _parse01(blocks, arch.n))
         dev = comfy.model_management.get_torch_device()
         key_map = comfy.lora.model_lora_keys_unet(model.model, {})
+        model_sd = None
+        sliced = [0, 0]  # slice layers widened to the whole layer, and ones that could not be (kept as the last slice)
 
         def load(name):
+            nonlocal model_sd
             p = comfy.lora.load_lora(_load_lora_file(folder_paths.get_full_path_or_raise("loras", name))[0], key_map,
                                      log_missing=False)
-            return {_key_of(k): v for k, v in p.items()}
+            out, parts = {}, {}
+            for k, v in p.items():
+                if isinstance(k, str) or len(k) < 2 or k[1] is None:
+                    out[_key_of(k)] = v
+                else:  # a slice of a fused layer (MOSS q / k / v in qkv): collected, then widened below
+                    parts.setdefault(k[0], []).append((k[1] if len(k) == 2 else None, v))
+            for key, entries in parts.items():
+                if model_sd is None:
+                    model_sd = model.model.state_dict()
+                w = model_sd.get(key)
+                ad = _widen(entries, tuple(w.shape)) if w is not None and w.ndim == 2 else None
+                if ad is None:
+                    sliced[1] += 1
+                    out[key] = entries[-1][1]
+                else:
+                    sliced[0] += 1
+                    out[key] = ad
+            return out
 
         # (patches by layer, weight from the block's (wa, wb)): A and B follow the curve, C and D their own strength
         used = [lora_a, lora_b]
@@ -189,14 +290,31 @@ class LCKrea2LoRAMerge:
             if name and name != "None" and abs(float(st)) > 1e-6:
                 used.append(name)
                 src.append((load(name), lambda wa, wb, st=float(st): st))
-        model_sd = None
         layers, patches = {}, {}
-        maps = {n: [[0.0] * NUM_BLOCKS for _ in arch.rows] for n in ("a", "b", "m")}
+        maps = {n: [[0.0] * arch.n for _ in arch.rows] for n in ("a", "b", "m", "ov", "dir")}
         outside = 0
         mix_a, mix_b = _weights(max(0.0, min(1.0, float(mix))))
+        # A vs B per layer, before the curve: do they change the same thing, and the same way or against each other?
+        sign_ab = 1.0 if float(strength_a) * float(strength_b) >= 0 else -1.0
+        shared = []  # (overlap, direction, block) for layers where they clearly change the same thing
         for key in sorted(set().union(*(set(p) for p, _ in src))):
             comfy.model_management.throw_exception_if_processing_interrupted()
             where = arch.where(key)
+            pa, pb = src[0][0].get(key), src[1][0].get(key)
+            if where and pa is not None and pb is not None:
+                shape = None
+                if not (_plain(pa) and _plain(pb)):
+                    if model_sd is None:
+                        model_sd = model.model.state_dict()
+                    shape = tuple(model_sd[key].shape) if key in model_sd else None
+                got = _inner(pa, pb, key, shape, dev)
+                if got:
+                    ov, direction = got[0], sign_ab * got[1]
+                    b_, r_ = where
+                    maps["ov"][r_][b_] = round(ov, 4)
+                    maps["dir"][r_][b_] = round(direction, 3)
+                    if ov > 0.1:  # about 100x what two unrelated rank-32 LoRAs share
+                        shared.append((ov, direction, b_))
             # layers outside the 28 blocks (text fusion) follow the curve's average, so "A only" really is A only
             wa, wb = _weights(curve[where[0]] if where else sum(curve) / len(curve))
             wa, wb = wa * mix_a, wb * mix_b
@@ -281,6 +399,19 @@ class LCKrea2LoRAMerge:
             note += f" · {outside} outside the blocks"
         if len(applied) < len(patches):
             note += f" · some layers do not match this model: are they all {arch.title} LoRAs?"
+        if sliced[1]:
+            note += f" · {sliced[1]} split layers could not be joined"
+        if shared:
+            per_block = {}
+            for ov, _d, b_ in shared:
+                per_block[b_] = per_block.get(b_, 0.0) + ov
+            top = sorted(per_block, key=per_block.get, reverse=True)[:3]
+            same = sum(1 for _o, d, _b in shared if d > 0.2)
+            against = sum(1 for _o, d, _b in shared if d < -0.2)
+            note += (f" · A and B change the same thing in {len(shared)} layers (most in blocks "
+                     f"{', '.join(map(str, sorted(top)))}): {same} the same way, {against} against")
+        elif any(any(row) for row in maps["ov"]):
+            note += " · A and B change different weights everywhere (two looks that push the same way can still overcook)"
         lora_obj = {
             "arch": arch.name, "source": "+".join(name(u) for u in used), "layers": layers, "shapes": {},
             "metadata": {},
@@ -290,18 +421,13 @@ class LCKrea2LoRAMerge:
                      "ties_density": ties_density},
         }
         ui = {"lc_lora_map": [{"maps": [["LoRA A", maps["a"]], ["LoRA B", maps["b"]], ["merged", maps["m"]]],
+                               "conflict": {"ov": maps["ov"], "dir": maps["dir"]},
                                "rows": arch.labels, "note": note, "curve": [round(v, 4) for v in curve],
                                "wired": bool(blocks_in)}]}
         return {"ui": ui, "result": (m, lora_obj)}
 
 
-ANIMA_PRESETS = {
-    "Both full": [0.5] * NUM_BLOCKS,
-    "A early, B late": [0.0 if i < 14 else 1.0 for i in range(NUM_BLOCKS)],
-    "B early, A late": [1.0 if i < 14 else 0.0 for i in range(NUM_BLOCKS)],
-    "A only": [0.0] * NUM_BLOCKS,
-    "B only": [1.0] * NUM_BLOCKS,
-}
+ANIMA_PRESETS = _basic(NUM_BLOCKS)
 
 
 class LCAnimaLoRAMerge(LCKrea2LoRAMerge):
@@ -320,8 +446,40 @@ class LCAnimaLoRAMerge(LCKrea2LoRAMerge):
 
     CATEGORY = "LC ModelBuilder/Anima"
     DESCRIPTION = ("Merges two to four Anima LoRAs with a per-block A / B curve (sum, TIES or balanced), applies the result to the "
-                   "model and outputs it for LC LoRA Save. The heatmaps show A's and B's share and the merged result.")
+                   "model and outputs it for LC LoRA Save. The heatmaps show A's and B's share, the merged result, and where A and B "
+                   "agree or fight.")
 
 
-NODE_CLASS_MAPPINGS = {"LCKrea2LoRAMerge": LCKrea2LoRAMerge, "LCAnimaLoRAMerge": LCAnimaLoRAMerge}
-NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRAMerge": "LC Krea2 LoRA Merge", "LCAnimaLoRAMerge": "LC Anima LoRA Merge"}
+MOSS_PRESETS = _basic(MOSS.n)
+
+
+class LCMOSSLoRAMerge(LCKrea2LoRAMerge):
+    """The LoRA Merge for MOSS Image: same methods over MOSS's 42 layers. q / k / v LoRAs are joined into qkv."""
+    ARCH = MOSS
+    PRESET_TABLE = MOSS_PRESETS
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        d = super().INPUT_TYPES()
+        r = d["required"]
+        r["model"] = ("MODEL", {"tooltip": "MOSS Image model. The merged LoRA is applied to it, like a LoRA loader."})
+        r["preset"] = ([*MOSS_PRESETS, "Custom"], {"default": "Both full",
+                       "tooltip": "Per layer: 0 = only A, 0.5 = both at full strength, 1 = only B. Dragging the graph "
+                                  "switches to Custom."})
+        r["blocks"] = ("STRING", {"default": ", ".join(["0.5"] * MOSS.n),
+                                  "tooltip": "42 layer values, 0 (A) to 1 (B). Drag the bars on the node."})
+        d["optional"]["blocks_in"] = ("STRING", {"forceInput": True,
+                                                 "tooltip": "A 42-layer curve from another node. When wired it replaces the "
+                                                            "preset and the bars."})
+        return d
+
+    CATEGORY = "LC ModelBuilder/MOSS"
+    DESCRIPTION = ("Merges two to four MOSS Image LoRAs with a per-layer A / B curve (sum, TIES or balanced), applies the "
+                   "result to the model and outputs it for LC LoRA Save. The heatmaps show A's and B's share, the merged "
+                   "result, and where A and B agree or fight.")
+
+
+NODE_CLASS_MAPPINGS = {"LCKrea2LoRAMerge": LCKrea2LoRAMerge, "LCAnimaLoRAMerge": LCAnimaLoRAMerge,
+                       "LCMOSSLoRAMerge": LCMOSSLoRAMerge}
+NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRAMerge": "LC Krea2 LoRA Merge", "LCAnimaLoRAMerge": "LC Anima LoRA Merge",
+                              "LCMOSSLoRAMerge": "LC MOSS LoRA Merge"}
