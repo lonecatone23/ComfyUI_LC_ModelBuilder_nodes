@@ -105,6 +105,8 @@ Tested on Better Lip Bite, which both locks the face and changes the whole image
 
 **LC Krea2 LoRA Block Scan** does the block hunting for you. It renders the same seed batch with no LoRA, with the full LoRA, and with the LoRA turned off in one block group at a time (`groups`, default `0-3, 4-9, 10-15, 16-21, 22-27, fusion`). Then it scores every row: the same-face score (the LC Face Variety Scorer's face models, so it needs onnxruntime), and how far each row moved from the base model and from the full LoRA. You get a labeled grid, a report, and a suggested curve (`blocks`) that sets the group that frees the face most to 0.3. A group only counts when it lowers the same-face score by 0.03 or more, since 8 seeds wobble by about 0.02. Use a prompt with one clear face. Each row is one batch, so 6 groups at 8 images is 64 renders.
 
+- 🔍 **View full size** (after a run): every render at full resolution in a full-window viewer. Click a picture, wheel to zoom, ↑/↓ for the same seed in the other rows. The pictures sit in ComfyUI's temp folder until ComfyUI restarts.
+
 **LC Krea2 LoRA Merge** combines two to four LoRAs into one. The bars set, per block, how much of each you get: **0 = only A**, **0.5 = both at full strength**, **1 = only B**. Layers outside the blocks follow the bars' average.
 
 - **method**: **sum** adds both, exactly (loading the saved merge gives the same image as the node). **ties** keeps each LoRA's strongest changes (**ties_density**) and drops the ones where the two pull against each other: for two styles or two characters that clash. Slower. **balanced** brings each LoRA to the same size first, so a loud one can't drown a quiet one, and the merge comes out as strong as one LoRA instead of stacking. Fast.
@@ -214,11 +216,11 @@ A diffusion model is trained on one VAE's latents, so only the **decoder** half 
 **LC VAE Merge**
 - **vae_a** is the base: its encoder is always kept, so the merged VAE still fits every model trained on it. **vae_b** gives its decoder.
 - Five sliders, coarse to fine (0 = all vae_a, 1 = all vae_b):
-  - **start**: decoder input and middle (overall tone, colour)
+  - **start**: decoder input and middle (overall tone, color)
   - **coarse** / **medium** / **fine**: the upsampling stages
-  - **finest**: the last stage and the output layer (texture, sharpness, the last colour mapping)
+  - **finest**: the last stage and the output layer (texture, sharpness, the last color mapping)
 - **report**: how far apart the two decoders are per region, and whether the encoders match.
-- ⚠️ Only merge VAEs that sit close: **under about 10 %** in the report. A decoder that was retrained instead of finetuned can't be blended (over 15 % the node warns), you get oversaturated colour or noise.
+- ⚠️ Only merge VAEs that sit close: **under about 10 %** in the report. A decoder that was retrained instead of finetuned can't be blended (over 15 % the node warns), you get oversaturated color or noise.
 - 💡 On Wan / Qwen-Image style VAEs (Krea 2, Anima) **ramp** the sliders instead of jumping (e.g. 0, 0.25, 0.5, 0.75, 1). Flux VAEs take hard jumps fine.
 - Diffusers-style files (up_blocks / mid_block) merge with original-layout ones: ComfyUI's loader puts them in the same layout first.
 
@@ -320,6 +322,7 @@ Catches "same face" in a model. Feed it a batch of generations (same prompt, dif
 4. 💡 No `requirements.txt`. The merge and save nodes only use what ships with ComfyUI core. **LC Face Variety Scorer** needs `onnxruntime`, and `install.py` handles that for you (ComfyUI-Manager runs it on install and update). Installing by hand with `git clone`? Run `python install.py` once with ComfyUI's own python.
 5. 💡 The **LC Face Variety Test** workflow in `workflows/` also uses **LC Image Batch From Folder** from [ComfyUI_LC123_nodes](https://github.com/lonecatone23/ComfyUI_LC123_nodes) (v1.40.0 or newer).
    - **LC Model Merge Any Precision Test**, **LC LoRA Extract Test**, **LoRA Test** and **Model test** (A / B tests with **LC Scoreboard 🏆**) are in `workflows/` too. They use LC123 nodes, and **LoRA Test** also uses LC Vision.
+   - **LC Krea2 Block Merge** (Block Merge Advanced, Semantic Vector Tuner, re-inject and save) and **LC ModelBuilder Node Examples** (every node, one group per job, switched on one group at a time) are there too.
 6. 💡 Hard-refresh your browser (`Ctrl+Shift+R`) after updating, so the new JS chrome actually loads.
 
 ---

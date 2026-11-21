@@ -9,6 +9,8 @@ full LoRA. Outputs a labeled grid, a report, and a suggested 28-block curve for 
 
 from __future__ import annotations
 
+import os
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -282,6 +284,23 @@ class LCKrea2LoRABlockScan:
         grid = _grid(rows)
         ui = nodes.PreviewImage().save_images(grid, filename_prefix="LC_LoRA_BlockScan")["ui"]
         ui["text"] = [report]
+        # every render at full size in the temp folder, for the 🔍 viewer on the node (the grid tiles are 192 px)
+        full, size = [], 0
+        tmp = folder_paths.get_temp_directory()
+        for lines, imgs in rows:
+            saved = nodes.PreviewImage().save_images(imgs, filename_prefix="LC_LoRA_BlockScan_full")["ui"]["images"]
+            for im in saved:
+                try:
+                    size += os.path.getsize(os.path.join(tmp, im.get("subfolder") or "", im["filename"]))
+                except OSError:
+                    pass
+            full.append({"label": lines[0], "info": lines[1:], "images": saved})
+        disk = (f"Full-size renders for 🔍 View full size: {size / 2**20:.0f} MB in ComfyUI's temp folder "
+                "(cleared when ComfyUI restarts).")
+        report = report + chr(10) * 2 + disk
+        ui["text"] = [report]
+        ui["lc_scan"] = [{"title": f"{lora_name} at {strength:g}", "seed": seed, "rows": full, "temp_dir": tmp,
+                          "mb": round(size / 2**20)}]
         return {"ui": ui, "result": (grid, report, blocks)}
 
 
