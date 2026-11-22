@@ -3,6 +3,7 @@
  * included. Picked by pack, not by a list, so new nodes get it too. A color saved in a workflow still wins.
  */
 import { app } from "../../scripts/app.js";
+import "./lc_color.js"; // keeps a saved "No color" and palette colors on reload and paste
 
 const PACK_COLOR = "#191964";
 const isMine = (nodeData) => String(nodeData?.python_module || "").includes("ComfyUI_LC_ModelBuilder_nodes");
