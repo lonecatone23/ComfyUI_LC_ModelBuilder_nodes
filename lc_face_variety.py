@@ -411,5 +411,100 @@ class LCFaceVarietyScorer:
         return (share, 100.0 * share if ok else float("nan"), -1.0, g, chr(10).join(lines), _grid(thumbs), used)
 
 
-NODE_CLASS_MAPPINGS = {"LCFaceVarietyScorer": LCFaceVarietyScorer}
-NODE_DISPLAY_NAME_MAPPINGS = {"LCFaceVarietyScorer": "LC Face Variety Scorer 🧑‍🤝‍🧑"}
+def _main_face(det, rec, rgb, min_face_px, with_turn=False):
+    """ArcFace embedding of the biggest face in one RGB uint8 picture, or None.
+    with_turn: also the head turn (nose offset from the eye midpoint in eye distances: 0 = facing the camera,
+    above ~1.2 = a full side profile, where ArcFace can no longer judge the identity)."""
+    rgb = np.ascontiguousarray(rgb[:, :, :3])
+    boxes, kps = _detect(det, rgb)
+    if not len(boxes):
+        # a face that fills the frame (a tight close-up) is too big for the detector: try again with a border
+        h, w = rgb.shape[:2]
+        p = max(h, w) // 3
+        padded = np.zeros((h + 2 * p, w + 2 * p, 3), np.uint8)
+        padded[p:p + h, p:p + w] = rgb
+        boxes, kps = _detect(det, padded)
+        if len(boxes):
+            rgb = padded
+    wide = [j for j in range(len(boxes)) if boxes[j][2] - boxes[j][0] >= min_face_px]
+    if not wide:
+        return (None, 0.0) if with_turn else None
+    big = max(wide, key=lambda j: (boxes[j][2] - boxes[j][0]) * (boxes[j][3] - boxes[j][1]))
+    k = kps[big]
+    e = _embed(rec, rgb, k)
+    if not with_turn:
+        return e
+    turn = float(abs(k[2][0] - (k[0][0] + k[1][0]) / 2) / (np.linalg.norm(k[1] - k[0]) + 1e-6))
+    return e, turn
+
+
+PROFILE_TURN = 1.2  # head turn above this = a full side profile (measured: 3/4 views 0.2 - 0.8, a profile 2.1)
+
+
+def _first_value(v, default):
+    return v[0] if isinstance(v, list) and v else default
+
+
+class LCFaceMatch:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "reference": ("IMAGE", {"tooltip": "The face the pictures should keep: your character's headshot."}),
+                "images": ("IMAGE", {"tooltip": "The pictures to score: a list (a dataset run) or a batch."}),
+                "pass_at": ("FLOAT", {"default": 0.40, "min": 0.1, "max": 0.95, "step": 0.01,
+                                      "tooltip": "At or above = ✅ the same person. Measured: a character across a "
+                                                 "whole dataset scores 0.42 - 0.85, big expressions and small faces at "
+                                                 "the low end."}),
+                "fail_below": ("FLOAT", {"default": 0.25, "min": 0.0, "max": 0.9, "step": 0.01,
+                                         "tooltip": "Below = ❌ a different person. Measured: real strangers never got "
+                                                    "past 0.16. In between = ⚠️ look at it."}),
+                "min_face_px": ("INT", {"default": 40, "min": 8, "max": 1024,
+                                        "tooltip": "Ignore faces narrower than this (background people, reflections)."}),
+                "device": (["cpu", "auto"], {"tooltip": "cpu takes about a second a picture. auto tries CUDA first."}),
+            },
+        }
+
+    INPUT_IS_LIST = True
+    RETURN_TYPES = ("FLOAT", "STRING")
+    RETURN_NAMES = ("score", "note")
+    OUTPUT_IS_LIST = (True, True)
+    FUNCTION = "match"
+    CATEGORY = "LC ModelBuilder/testing"
+    DESCRIPTION = ("Scores every picture against your reference face (ArcFace, 0 - 1, higher = more like her). The note "
+                   "('Face ✅ 0.62') plugs into LC Preview Gate's note, so the score shows on each thumbnail and a ❌ "
+                   "gets a red ✕ in the corner (a likely drop, you decide). A full side profile can't be judged by "
+                   "the face model: it shows ⚠️ profile, never ❌. Uses InsightFace buffalo_l (auto-downloads once, "
+                   "non-commercial research license).")
+
+    def match(self, reference, images, pass_at, fail_below, min_face_px, device):
+        pass_at, fail_below = float(_first_value(pass_at, 0.4)), float(_first_value(fail_below, 0.25))
+        min_px, dev = int(_first_value(min_face_px, 40)), str(_first_value(device, "cpu"))
+        det, rec = _sessions(dev)
+
+        def to_np(t):
+            return (t.clamp(0, 1).cpu().numpy() * 255).round().astype(np.uint8)
+
+        ref = _main_face(det, rec, to_np(reference[0])[0], min_px)
+        if ref is None:
+            raise ValueError("LC Face Match: no face found in the reference picture. Use a clear headshot.")
+        scores, notes = [], []
+        for batch in images:
+            for rgb in to_np(batch):
+                e, turn = _main_face(det, rec, rgb, min_px, with_turn=True)
+                if e is None:
+                    scores.append(-1.0)
+                    notes.append("Face ⚠️ none found")
+                    continue
+                s = float(e @ ref)
+                scores.append(s)
+                if s < pass_at and turn > PROFILE_TURN:
+                    notes.append(f"Face ⚠️ profile {s:.2f}")  # the face model can't judge a side profile
+                    continue
+                notes.append(f"Face {'✅' if s >= pass_at else '❌' if s < fail_below else '⚠️'} {s:.2f}")
+        print(f"[LC Face Match] {len(scores)} picture(s): " + ", ".join(n.split(' ', 1)[1] for n in notes))
+        return (scores, notes)
+
+
+NODE_CLASS_MAPPINGS = {"LCFaceVarietyScorer": LCFaceVarietyScorer, "LCFaceMatch": LCFaceMatch}
+NODE_DISPLAY_NAME_MAPPINGS = {"LCFaceVarietyScorer": "LC Face Variety Scorer 🧑‍🤝‍🧑", "LCFaceMatch": "LC Face Match 🪪"}

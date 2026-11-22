@@ -13,6 +13,7 @@ Model and checkpoint merging tools by lonecatone23. Companion pack to [ComfyUI_L
 | LC Checkpoint Save | All-in-one checkpoint saver — model + clip + vae, all required. Adds an `enabled` toggle and a per-save `embed_workflow` toggle that core's stock Save Checkpoint node doesn't have. |
 | LC Diffusion Model Save | Same as LC Checkpoint Save but model-only — no clip/vae sockets at all. |
 | LC Face Variety Scorer 🧑‍🤝‍🧑 | Same-face test for a model. Scores how different the faces in an image batch are (0.0 - 1.0, lower = more variety), plus a group-shot score and a grid of the faces it found. Photo (ArcFace) or anime (CCIP) mode. |
+| LC Face Match 🪪 | Scores every picture of a dataset against your character's reference face (ArcFace, higher = more like her). Its note ("Face ✅ 0.62") shows on LC Preview Gate's thumbnails. |
 | LC Krea2 LoRA Editor | 🧪 **BETA, still in testing.** Load a Krea 2 LoRA with each of the 28 blocks turned up or down, attention and MLP scaled separately, and spikes softened. Patches the model like a LoRA loader and outputs the edited LoRA. For face lock and for LoRAs that change the whole image. |
 | LC LoRA Save | 🧪 **BETA, still in testing.** Saves an edited LoRA as a standard file with every edit baked in, optionally at a new rank or a rank per layer by need, with a report of what the rank cut lost. |
 | LC Krea2 LoRA Block Scan | 🧪 **BETA, still in testing.** Finds where a LoRA locks the face or changes the whole image: renders a seed batch with each block group turned off, scores every row, and suggests a block curve for the Editor. |
@@ -292,6 +293,22 @@ Catches "same face" in a model. Feed it a batch of generations (same prompt, dif
 - **report**: all of the above as text, ready for a Show Text / Preview Any node.
 - 💡 Pair it with **LC Image Batch From Folder** (LC123) to score a whole folder of test images. The example workflow is in `workflows/`.
 - **face_model = anime (CCIP)** for anime and illustration models (Anima, Illustrious, Pony), where photo face models miss. It finds each image's main face with an anime face detector, then CCIP scores the share of image pairs that show the same character: an anime base model sits around 0.1 to 0.25, a locked face near 1.0. The two models download once to `models/ccip/` (about 200 MB, checksum-verified). crowd_score is not used in this mode.
+
+### LC Face Match 🪪
+
+Does every picture of a character dataset still look like her? Compares each face to your **reference** headshot with the same face models as the Face Variety Scorer.
+
+| Score | What it means | Note |
+|---|---|---|
+| 0.40 - 1.00 | Same person (a character across a 24-picture dataset scored 0.41 - 0.85) | Face ✅ |
+| 0.25 - 0.40 | Could be her, take a look | Face ⚠️ |
+| 0.00 - 0.25 | A different person (13 real strangers scored 0.16 at most) | Face ❌ |
+| Full side profile | The face model can't judge it | Face ⚠️ profile |
+
+- **pass_at** (0.40) and **fail_below** (0.25) move those lines.
+- A full side profile is never ❌, and a close-up so tight the face fills the frame gets a second look with a border added.
+- **note** plugs into **LC Preview Gate**'s `note` (LC123): the score shows on every thumbnail and a ❌ gets a red ✕ in the corner. Nothing is dropped for you.
+- Works on a list (a dataset run) or a batch. The example is in the **Krea2 ID Edit Character dataset** workflow.
 
 **Face models (auto-download):** the first run downloads InsightFace's **buffalo_l** pack (~280 MB) into `ComfyUI/models/insightface/models/buffalo_l/`. If you already have it there (IPAdapter FaceID, ReActor, etc. use the same folder), nothing is downloaded. The download is checksum-verified, so a cut-off download never leaves broken files behind.
 
