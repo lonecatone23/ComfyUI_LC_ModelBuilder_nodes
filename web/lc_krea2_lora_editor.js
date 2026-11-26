@@ -9,6 +9,7 @@ const N = 28;
 const ROWS = ["q", "k", "v", "o", "gate", "m.gate", "m.up", "m.down"];
 const ANIMA_ROWS = ["sa.q", "sa.k", "sa.v", "sa.o", "ca.q", "ca.k", "ca.v", "ca.o", "mlp.1", "mlp.2", "adaln"];
 const MOSS_ROWS = ["qkv", "o", "ffn.up", "ffn.down"];
+const H3_ROWS = ["qkv", "o", "gate", "fc1", "fc2", "adaln"];
 const nOf = (node) => node._lcCfg?.n || N;
 const H_BARS = 240;
 const MIN_W = 380;
@@ -75,6 +76,21 @@ CFG.LCMOSSLoRAEditor = {
     return Array.from({ length: n }, (_, i) => (i >= lo && i <= hi ? 0.3 : 1));
   },
 };
+// H3 / H3 Image: 50 blocks. Groups mirror H3_GROUPS in lc_krea2_lora_editor.py
+CFG.LCH3LoRAEditor = { ...CFG.LCMOSSLoRAEditor, n: 50, dividers: [17, 34], rows: H3_ROWS,
+  preset(name) {
+    const n = 50;
+    if (name === "Full") return new Array(n).fill(1);
+    const m = /\((\d+)-(\d+)\)$/.exec(name || "");
+    if (!m) return null;
+    const lo = +m[1], hi = +m[2];
+    return Array.from({ length: n }, (_, i) => (i >= lo && i <= hi ? 0.3 : 1));
+  },
+};
+// LC H3 LoRA Blocks: the H3 editor's bars and presets, no heatmaps
+CFG.LCH3LoRABlocks = { ...CFG.LCH3LoRAEditor, maps: 0, hint: "Run once to see the LoRA's own strength per block behind the bars." };
+// LC Krea2 LoRA Blocks: the Krea 2 editor's bars and presets, no heatmaps
+CFG.LCKrea2LoRABlocks = { ...CFG.LCKrea2LoRAEditor, maps: 0, hint: CFG.LCH3LoRABlocks.hint };
 CFG.LCMOSSLoRAMerge = {
   ...CFG.LCKrea2LoRAMerge, n: 42, dividers: [21], rows: MOSS_ROWS,
   preset(name) {
@@ -248,7 +264,7 @@ function draw(node) {
   ctx.fillStyle = "rgba(255,255,255,0.65)";
   ctx.font = "10px sans-serif";
   const wiredNote = wired(node) ? (map?.wired ? "bars from blocks_in (drag to edit: unplugs it) · " : "blocks_in wired (drag to edit: unplugs it) · ") : "";
-  ctx.fillText(wiredNote + (map ? map.note : "Run once to see the LoRA's layer strengths."), 2, H_TOTAL - 5, cw - 4);
+  ctx.fillText(wiredNote + (map ? map.note : cfg.hint || "Run once to see the LoRA's layer strengths."), 2, H_TOTAL - 5, cw - 4);
 }
 
 function blockAt(node, ev) {

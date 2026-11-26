@@ -51,9 +51,12 @@ def save_checkpoint(output_path, model, clip=None, vae=None, metadata=None, extr
             sd = {k: (v.view(torch.uint8) if isinstance(v, torch.Tensor) and v.dtype == e8m0 else v) for k, v in sd.items()}
         return original(sd, ckpt, metadata=metadata)
 
+    from .lc_round import random_rounding_for_save
+
     comfy.utils.save_torch_file = save_torch_file
     try:
-        comfy.sd.save_checkpoint(output_path, model, clip, vae, metadata=metadata, extra_keys=extra_keys or {})
+        with random_rounding_for_save():  # merged / LoRA-patched bf16 weights keep small changes
+            comfy.sd.save_checkpoint(output_path, model, clip, vae, metadata=metadata, extra_keys=extra_keys or {})
     finally:
         comfy.utils.save_torch_file = original
 

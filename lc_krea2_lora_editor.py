@@ -28,7 +28,7 @@ import folder_paths
 from comfy.weight_adapter.lora import LoRAAdapter
 
 from .lc_checkpoint_save import EMBED_WORKFLOW_INPUT, ENABLED_INPUT, METADATA_INPUT, trim_metadata, workflow_metadata
-from .lc_lora_arch import ANIMA, KREA2, MOSS
+from .lc_lora_arch import ANIMA, H3, KREA2, MOSS
 
 NUM_BLOCKS = 28
 MODULES = ["attn.wq", "attn.wk", "attn.wv", "attn.wo", "attn.gate", "mlp.gate", "mlp.up", "mlp.down"]
@@ -464,6 +464,128 @@ class LCMOSSLoRAEditor(LCKrea2LoRAEditor):
     )
 
 
+# H3 block groups: thirds of the 50 blocks. Unlike Krea 2 and MOSS there is no block merge test on H3 yet, so these
+# are plain groups to try on a fixed seed, not named jobs.
+H3_GROUPS = {"Early blocks (0-16)": (0, 16), "Mid blocks (17-33)": (17, 33), "Late blocks (34-49)": (34, 49)}
+H3_PRESETS = ["Full", *H3_GROUPS, "Custom"]
+
+
+class LCH3LoRAEditor(LCKrea2LoRAEditor):
+    """The LoRA Editor for MiniMax H3 and H3 Image: same edits over H3's 50 blocks."""
+    ARCH = H3
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        d = super().INPUT_TYPES()
+        r = d["required"]
+        r["model"] = ("MODEL", {"tooltip": "MiniMax H3 or H3 Image model. The edited LoRA is applied to it, like a LoRA loader."})
+        r["preset"] = (H3_PRESETS, {"default": "Full",
+                                    "tooltip": "Full = the LoRA as it is. Each group preset turns those blocks down to 0.3. "
+                                               "Try each on a fixed seed and keep the one that does the job. Dragging the "
+                                               "graph switches to Custom."})
+        r["blocks"] = ("STRING", {"default": ", ".join(["1"] * H3.n),
+                                  "tooltip": "50 block multipliers, 0 to 2 (1 = unchanged). Drag the bars on the node."})
+        r["attention"] = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05,
+                                    "tooltip": "Multiplier for the attention layers (qkv, out, gate) in every block."})
+        r["mlp"] = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05,
+                              "tooltip": "Multiplier for the MLP layers (fc1, fc2) in every block."})
+        r["outside_blocks"] = ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05,
+                                         "tooltip": "Multiplier for layers outside the 50 blocks (token refiner, input "
+                                                    "projections, final layer), if the LoRA has any."})
+        d["optional"]["blocks_in"] = ("STRING", {"forceInput": True,
+                                                 "tooltip": "A 50-block curve from another node. When wired it replaces "
+                                                            "the preset and the bars."})
+        return d
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, preset=None, **kwargs):
+        return True if preset is None or preset in H3_PRESETS else f"unknown preset: {preset}"
+
+    @classmethod
+    def preset_curve(cls, name):
+        if name == "Full":
+            return [1.0] * H3.n
+        if name in H3_GROUPS:
+            lo, hi = H3_GROUPS[name]
+            return [0.3 if lo <= i <= hi else 1.0 for i in range(H3.n)]
+        return None
+
+    CATEGORY = "LC ModelBuilder/MiniMax H3"
+    DESCRIPTION = (
+        "Loads a MiniMax H3 or H3 Image LoRA with per-block, attention / MLP and spike edits, applies it to the model and "
+        "outputs the edited LoRA for LC LoRA Save. The heatmap shows each layer's strength before and after the edits."
+    )
+
+
+class LCH3LoRABlocks(LCH3LoRAEditor):
+    """LC H3 LoRA Editor cut down to the job: strength, a block-thirds preset, spike soften and the bar graph."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        e = super().INPUT_TYPES()["required"]
+        return {"required": {
+            "model": e["model"],
+            "lora_name": (e["lora_name"][0], {"tooltip": "H3 or H3 Image LoRA, from models/loras."}),
+            "strength": ("FLOAT", {"default": 1.0, "min": -4.0, "max": 4.0, "step": 0.05,
+                                   "tooltip": "Overall LoRA strength, same as a LoRA loader."}),
+            "preset": (H3_PRESETS, {"default": "Full",
+                                    "tooltip": "Full = the LoRA as it is. Each preset turns that third of the 50 blocks "
+                                               "down to 0.3. In tests the mid blocks carried a style LoRA's look, and a "
+                                               "character LoRA's face sat across all three. Dragging the graph switches "
+                                               "to Custom."}),
+            "spike_soften": (["off", "layers", "directions", "both"], {"default": "off",
+                             "tooltip": "Tames a LoRA that takes over the whole picture. layers = pulls down layers far "
+                                        "stronger than the same layer in other blocks. directions = flattens the one "
+                                        "or two directions that dominate a layer. both = both."}),
+            "blocks": ("STRING", {"default": ", ".join(["1"] * H3.n),
+                                  "tooltip": "50 block multipliers, 0 to 2 (1 = unchanged). Drag the bars on the node, "
+                                             "shift-click or double-click a bar to reset it."}),
+        }}
+
+    @classmethod
+    def VALIDATE_INPUTS(cls, preset=None, **kwargs):
+        return True if preset is None or preset in H3_PRESETS else f"unknown preset: {preset}"
+
+    RETURN_TYPES = ("MODEL", "LC_LORA")
+    RETURN_NAMES = ("model", "edited_lora")
+    FUNCTION = "blocks_edit"
+    CATEGORY = "LC ModelBuilder/MiniMax H3"
+    DESCRIPTION = ("Loads an H3 or H3 Image LoRA with a strength per block: pick a third to turn down or drag the bars. "
+                   "The bars sit over the LoRA's own strength per block after the first run.")
+
+    def blocks_edit(self, model, lora_name, strength, preset, spike_soften, blocks):
+        return self.edit(model, lora_name, strength, preset, blocks, 1.0, 1.0, 1.0, spike_soften, 2.0)
+
+
+class LCKrea2LoRABlocks(LCKrea2LoRAEditor):
+    """LC Krea2 LoRA Editor cut down to the job: strength, a block preset, spike soften and the bar graph."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        e = super().INPUT_TYPES()["required"]
+        return {"required": {
+            "model": e["model"],
+            "lora_name": (e["lora_name"][0], {"tooltip": "Krea 2 LoRA, from models/loras."}),
+            "strength": ("FLOAT", {"default": 1.0, "min": -4.0, "max": 4.0, "step": 0.05,
+                                   "tooltip": "Overall LoRA strength, same as a LoRA loader."}),
+            "preset": e["preset"],
+            "spike_soften": (["off", "layers", "directions", "both"], {"default": "off",
+                             "tooltip": "Tames a LoRA that takes over the whole picture. layers = pulls down layers far "
+                                        "stronger than the same layer in other blocks. directions = flattens the one "
+                                        "or two directions that dominate a layer. both = both."}),
+            "blocks": ("STRING", {"default": ", ".join(["1"] * NUM_BLOCKS),
+                                  "tooltip": "28 block multipliers, 0 to 2 (1 = unchanged). Drag the bars on the node, "
+                                             "shift-click or double-click a bar to reset it."}),
+        }}
+
+    FUNCTION = "blocks_edit"
+    DESCRIPTION = ("Loads a Krea 2 LoRA with a strength per block: pick a block group to turn down or drag the bars. "
+                   "The bars sit over the LoRA's own strength per block after the first run.")
+
+    def blocks_edit(self, model, lora_name, strength, preset, spike_soften, blocks):
+        return self.edit(model, lora_name, strength, preset, blocks, 1.0, 1.0, 1.0, spike_soften, 2.0)
+
+
 class LCLoRASave:
     @classmethod
     def INPUT_TYPES(cls):
@@ -646,6 +768,8 @@ class LCLoRASave:
 
 
 NODE_CLASS_MAPPINGS = {"LCKrea2LoRAEditor": LCKrea2LoRAEditor, "LCLoRASave": LCLoRASave,
-                       "LCAnimaLoRAEditor": LCAnimaLoRAEditor, "LCMOSSLoRAEditor": LCMOSSLoRAEditor}
+                       "LCAnimaLoRAEditor": LCAnimaLoRAEditor, "LCMOSSLoRAEditor": LCMOSSLoRAEditor,
+                       "LCH3LoRAEditor": LCH3LoRAEditor, "LCH3LoRABlocks": LCH3LoRABlocks, "LCKrea2LoRABlocks": LCKrea2LoRABlocks}
 NODE_DISPLAY_NAME_MAPPINGS = {"LCKrea2LoRAEditor": "LC Krea2 LoRA Editor", "LCLoRASave": "LC LoRA Save",
-                              "LCAnimaLoRAEditor": "LC Anima LoRA Editor", "LCMOSSLoRAEditor": "LC MOSS LoRA Editor"}
+                              "LCAnimaLoRAEditor": "LC Anima LoRA Editor", "LCMOSSLoRAEditor": "LC MOSS LoRA Editor",
+                              "LCH3LoRAEditor": "LC H3 LoRA Editor", "LCH3LoRABlocks": "LC H3 LoRA Blocks 🎚️", "LCKrea2LoRABlocks": "LC Krea2 LoRA Blocks 🎚️"}

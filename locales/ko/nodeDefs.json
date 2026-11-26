@@ -833,5 +833,67 @@
         "tooltip": "cpu는 그림 한 장에 약 1초. auto는 먼저 CUDA를 시도해요."
       }
     }
+  },
+  "LCH3LoRABlocks": {
+    "description": "H3 또는 H3 Image LoRA를 block별 강도로 불러옵니다. 낮출 3분의 1을 고르거나 막대를 드래그하세요. 첫 실행 후 막대 뒤에 LoRA 자체의 block별 강도가 보입니다.",
+    "inputs": {
+      "model": {
+        "tooltip": "MiniMax H3 또는 H3 Image 모델. 편집된 LoRA를 LoRA loader처럼 적용합니다."
+      },
+      "lora_name": {
+        "tooltip": "H3 또는 H3 Image LoRA, models/loras에서."
+      },
+      "strength": {
+        "tooltip": "LoRA 전체 강도, LoRA loader와 같습니다."
+      },
+      "preset": {
+        "tooltip": "Full = LoRA를 그대로 씁니다. 각 프리셋은 50개 block 중 그 3분의 1을 0.3으로 낮춥니다. 테스트에서 스타일 LoRA의 화풍은 중간 block에, 캐릭터 LoRA의 얼굴은 세 구간 모두에 퍼져 있었습니다. 그래프를 드래그하면 Custom으로 바뀝니다."
+      },
+      "spike_soften": {
+        "tooltip": "화면 전체를 장악하는 LoRA를 길들입니다. layers = 다른 block의 같은 층보다 훨씬 강한 층을 낮춥니다. directions = 한 층을 지배하는 한두 방향을 평평하게 합니다. both = 둘 다."
+      },
+      "blocks": {
+        "tooltip": "50개 block 배율, 0에서 2 (1 = 그대로). 노드의 막대를 드래그하고, shift 클릭이나 더블클릭으로 초기화합니다."
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "편집된 LoRA가 적용된 모델."
+      },
+      "1": {
+        "tooltip": "편집된 LoRA, LC LoRA Save용."
+      }
+    }
+  },
+  "LCKrea2LoRABlocks": {
+    "description": "Krea 2 LoRA를 block별 강도로 불러옵니다. 낮출 block 그룹을 고르거나 막대를 드래그하세요. 첫 실행 후 막대 뒤에 LoRA 자체의 block별 강도가 보입니다.",
+    "inputs": {
+      "model": {
+        "tooltip": "Krea 2 모델. LoRA 로더처럼 편집된 LoRA가 적용됩니다."
+      },
+      "lora_name": {
+        "tooltip": "Krea 2 LoRA, models/loras에서."
+      },
+      "strength": {
+        "tooltip": "LoRA 전체 강도, LoRA loader와 같습니다."
+      },
+      "preset": {
+        "tooltip": "Full = LoRA 그대로. 각 블록 그룹 프리셋은 해당 블록을 0.3으로 낮춥니다. face lock은 LoRA마다 다른 블록에 있으므로(Lip Bite: 후반 얼굴 블록 16-21, Amateur V4: 얼굴 블록 4-9), 고정 seed 배치로 각각 시험해 얼굴이 풀리는 것을 고르세요. Tame whole image = 블록 4-15를 0.7로 설정하며, spike_soften directions와 함께 쓰면 Lip Bite가 이미지 전체를 바꾸는 것이 멈췄습니다. 그래프를 드래그하면 Custom으로 전환됩니다."
+      },
+      "spike_soften": {
+        "tooltip": "화면 전체를 장악하는 LoRA를 길들입니다. layers = 다른 block의 같은 층보다 훨씬 강한 층을 낮춥니다. directions = 한 층을 지배하는 한두 방향을 평평하게 합니다. both = 둘 다."
+      },
+      "blocks": {
+        "tooltip": "28개 block 배율, 0에서 2 (1 = 그대로). 노드의 막대를 드래그하고, shift 클릭이나 더블클릭으로 초기화합니다."
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "편집된 LoRA가 적용된 모델."
+      },
+      "1": {
+        "tooltip": "편집된 LoRA, LC LoRA Save용."
+      }
+    }
   }
 }

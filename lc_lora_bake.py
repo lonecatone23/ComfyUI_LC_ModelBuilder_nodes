@@ -29,6 +29,7 @@ import comfy.utils
 import folder_paths
 
 from .lc_fingerprint_library import _DT, _header
+from .lc_round import stochastic_bf16
 
 _BLOCK = re.compile(r"(?:^|\.)(?:blocks|layers|double_blocks|single_blocks|transformer_blocks|joint_blocks)\.(\d+)\.")
 _FULL = {"BF16", "F16", "F32"}
@@ -99,7 +100,7 @@ def bake(model_path, loras, out_path, blocks_curve="", outside_blocks=1.0, devic
             p = patches.get(mk)
             if p:
                 nw = comfy.lora.calculate_weight(p, w.to(dev, torch.float32), mk, intermediate_dtype=torch.float32)
-                w = nw.to(w.dtype).cpu()
+                w = (stochastic_bf16(nw, fk) if w.dtype == torch.bfloat16 else nw.to(w.dtype)).cpu()
                 changed += 1
             out[fk] = w
     recipe = {"base": os.path.basename(model_path), "loras": report, "blocks_curve": curve or None, "outside_blocks": outside_blocks}

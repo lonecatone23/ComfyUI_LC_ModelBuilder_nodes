@@ -833,5 +833,67 @@
         "tooltip": "cpu 每张图大约一秒。auto 先尝试 CUDA。"
       }
     }
+  },
+  "LCH3LoRABlocks": {
+    "description": "加载 H3 或 H3 Image LoRA，并为每个 block 设定强度：选一个三分之一段调低，或拖动柱条。第一次运行后，柱条后面会显示该 LoRA 自己每个 block 的强度。",
+    "inputs": {
+      "model": {
+        "tooltip": "MiniMax H3 或 H3 Image 模型。编辑后的 LoRA 会应用到它上面，就像 LoRA loader 一样。"
+      },
+      "lora_name": {
+        "tooltip": "H3 或 H3 Image LoRA，来自 models/loras。"
+      },
+      "strength": {
+        "tooltip": "LoRA 整体强度，与 LoRA loader 相同。"
+      },
+      "preset": {
+        "tooltip": "Full = 原样使用该 LoRA。每个预设会把 50 个 block 中对应的三分之一降到 0.3。测试中，风格 LoRA 的画风在中段 block，角色 LoRA 的脸分布在全部三段。拖动图形会切换到 Custom。"
+      },
+      "spike_soften": {
+        "tooltip": "驯服会接管整张画面的 LoRA。layers = 把比其他 block 中同一层强得多的层拉低。directions = 压平主导某一层的一两个方向。both = 两者都做。"
+      },
+      "blocks": {
+        "tooltip": "50 个 block 倍率，0 到 2（1 = 不变）。在节点上拖动柱条，按住 shift 点击或双击柱条可重置。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "已应用编辑后 LoRA 的模型。"
+      },
+      "1": {
+        "tooltip": "编辑后的 LoRA，供 LC LoRA Save 使用。"
+      }
+    }
+  },
+  "LCKrea2LoRABlocks": {
+    "description": "加载 Krea 2 LoRA，并为每个 block 设定强度：选一个 block 组调低，或拖动柱条。第一次运行后，柱条后面会显示该 LoRA 自己每个 block 的强度。",
+    "inputs": {
+      "model": {
+        "tooltip": "Krea 2 模型。编辑后的 LoRA 会应用到它上面，就像 LoRA loader 一样。"
+      },
+      "lora_name": {
+        "tooltip": "Krea 2 LoRA，来自 models/loras。"
+      },
+      "strength": {
+        "tooltip": "LoRA 整体强度，与 LoRA loader 相同。"
+      },
+      "preset": {
+        "tooltip": "Full = 原样使用该 LoRA。每个 block 组预设会把对应 block 降到 0.3。人脸锁定在每个 LoRA 中位于不同的 block（Lip Bite：后段人脸 block 16-21，Amateur V4：人脸 block 4-9），所以请在固定 seed 批次上逐个尝试，保留能解放人脸的那个。Tame whole image = block 4-15 设为 0.7，配合 spike_soften 方向，可阻止 Lip Bite 改变整张图。拖动图形会切换到 Custom。"
+      },
+      "spike_soften": {
+        "tooltip": "驯服会接管整张画面的 LoRA。layers = 把比其他 block 中同一层强得多的层拉低。directions = 压平主导某一层的一两个方向。both = 两者都做。"
+      },
+      "blocks": {
+        "tooltip": "28 个 block 倍率，0 到 2（1 = 不变）。在节点上拖动柱条，按住 shift 点击或双击柱条可重置。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "已应用编辑后 LoRA 的模型。"
+      },
+      "1": {
+        "tooltip": "编辑后的 LoRA，供 LC LoRA Save 使用。"
+      }
+    }
   }
 }

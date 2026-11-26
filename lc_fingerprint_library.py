@@ -458,10 +458,27 @@ def add_to_library(path, sk, shp, kind, family, note=""):
             "rng": _rng_tag()}
     comfy.utils.save_torch_file({k: v.contiguous() for k, v in sk.items()}, dest, metadata=meta)
     ix = _index()
+    old = ix.get(os.path.abspath(path), {})
     ix[os.path.abspath(path)] = {"stamp": _stamp(path), "file": rel, "name": name, "kind": kind, "family": family,
-                                 "rng": _rng_tag()}
+                                 "rng": _rng_tag(), **({"civitai": old["civitai"]} if old.get("civitai") else {})}
     _save_index(ix)
     return rel
+
+
+def civitai_notes(found_lines, family):
+    """CivitAI facts for the library entries a report names: trained or merged checkpoint, and whether its license allows
+    merges. Filled in by the library builder from CivitAI ("civitai" on an index entry); entries without it say nothing."""
+    text = "\n".join(found_lines)
+    out = []
+    for e in _index().values():
+        c = e.get("civitai")
+        if not c or (family and e.get("family") != family) or e.get("name", "\0") not in text:
+            continue
+        made = f"{c['made']} checkpoint" if c.get("made") else ("LoRA" if e.get("kind") == "lora" else "checkpoint")
+        merges = "merges allowed" if c.get("merges") else "⚠️ merges NOT allowed"
+        extra = (", selling merges allowed" if c.get("sell_merges") else "") + (", credit required" if c.get("credit") else "")
+        out.append(f"CivitAI: {e['name']} = {c.get('model', '?')} ({made}), {merges}{extra}. {c.get('url', '')}".rstrip())
+    return out
 
 
 def load_entries(family=None, kind=None):
@@ -762,6 +779,7 @@ class LCFingerprintIdentify:
                 if sk:
                     found, img = identify_sketch(kind, fam, sk, precision=precision_of(path, _header(path)[0]))
                     block += found
+                    block += civitai_notes(found, fam)
                     if img is not None:
                         images.append(img)
                     if add_to_library:

@@ -80,3 +80,17 @@ MOSS = Arch(
     "text embedder, timestep and final layer",
     n=42,
 )
+
+# MiniMax H3 (video) and H3 Image: the same 50 blocks (H3 Image just has no audio stream). Per block: fused qkv,
+# out projection, the optional gate, MLP fc1 / fc2 and the timestep modulation. Anchored on diffusion_model.blocks so
+# the token refiner's own blocks.N stay outside, with the patch / condition projections and the final layer.
+# Per-block LoRA control on H3 was suggested by nova452's Rebalance Pack (Apache-2.0); this is LC's own code.
+H3 = Arch(
+    "h3", "MiniMax H3",
+    r"^diffusion_model\.blocks\.(\d+)\.(.+)\.weight$",
+    [("qkv", "attn.qkv_proj"), ("o", "attn.out_proj"), ("gate", "attn.to_gate_compress"),
+     ("fc1", "mlp.fc1"), ("fc2", "mlp.fc2"), ("adaln", "adaln_proj.linear")],
+    ["attn", "attn", "attn", "mlp", "mlp", "block"],
+    "token refiner, input projections and final layer",
+    n=50,
+)

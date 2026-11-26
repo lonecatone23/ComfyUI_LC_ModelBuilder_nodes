@@ -833,5 +833,67 @@
         "tooltip": "cpu は1枚あたり約1秒。auto はまず CUDA を試します。"
       }
     }
+  },
+  "LCH3LoRABlocks": {
+    "description": "H3 または H3 Image の LoRA を block ごとの強さで読み込みます。下げる三分の一を選ぶか、バーをドラッグします。初回実行後、バーの後ろに LoRA 自身の block ごとの強さが表示されます。",
+    "inputs": {
+      "model": {
+        "tooltip": "MiniMax H3 または H3 Image のモデル。編集した LoRA を LoRA loader と同じように適用します。"
+      },
+      "lora_name": {
+        "tooltip": "H3 または H3 Image の LoRA(models/loras から)。"
+      },
+      "strength": {
+        "tooltip": "LoRA 全体の強さ。LoRA loader と同じです。"
+      },
+      "preset": {
+        "tooltip": "Full = LoRA をそのまま使います。各プリセットは 50 block のうちその三分の一を 0.3 に下げます。テストでは、スタイル LoRA の見た目は中盤の block にあり、キャラクター LoRA の顔は三つ全部に分かれていました。グラフをドラッグすると Custom に切り替わります。"
+      },
+      "spike_soften": {
+        "tooltip": "画面全体を乗っ取る LoRA を抑えます。layers = 他の block の同じ層よりずっと強い層を引き下げます。directions = 層を支配する一つか二つの方向を平らにします。both = 両方。"
+      },
+      "blocks": {
+        "tooltip": "50 個の block 倍率、0 から 2(1 = 変更なし)。ノード上のバーをドラッグ、shift クリックかダブルクリックでリセット。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "編集した LoRA を適用したモデル。"
+      },
+      "1": {
+        "tooltip": "編集した LoRA(LC LoRA Save 用)。"
+      }
+    }
+  },
+  "LCKrea2LoRABlocks": {
+    "description": "Krea 2 の LoRA を block ごとの強さで読み込みます。下げる block グループを選ぶか、バーをドラッグします。初回実行後、バーの後ろに LoRA 自身の block ごとの強さが表示されます。",
+    "inputs": {
+      "model": {
+        "tooltip": "Krea 2 モデル。編集した LoRA が、LoRA ローダーのように適用されます。"
+      },
+      "lora_name": {
+        "tooltip": "Krea 2 の LoRA(models/loras から)。"
+      },
+      "strength": {
+        "tooltip": "LoRA 全体の強さ。LoRA loader と同じです。"
+      },
+      "preset": {
+        "tooltip": "Full = LoRA そのまま。各ブロックグループのプリセットは、そのブロックを 0.3 に下げます。face lock は LoRA ごとに異なるブロックにあります(Lip Bite:後半の顔ブロック 16-21、Amateur V4:顔ブロック 4-9)。そのため、固定 seed のバッチでそれぞれ試し、顔が解放されるものを残してください。Tame whole image = ブロック 4-15 を 0.7 にしたもので、spike_soften の directions と合わせると、Lip Bite が画像全体を変えてしまうのを防げました。グラフをドラッグすると Custom に切り替わります。"
+      },
+      "spike_soften": {
+        "tooltip": "画面全体を乗っ取る LoRA を抑えます。layers = 他の block の同じ層よりずっと強い層を引き下げます。directions = 層を支配する一つか二つの方向を平らにします。both = 両方。"
+      },
+      "blocks": {
+        "tooltip": "28 個の block 倍率、0 から 2(1 = 変更なし)。ノード上のバーをドラッグ、shift クリックかダブルクリックでリセット。"
+      }
+    },
+    "outputs": {
+      "0": {
+        "tooltip": "編集した LoRA を適用したモデル。"
+      },
+      "1": {
+        "tooltip": "編集した LoRA(LC LoRA Save 用)。"
+      }
+    }
   }
 }
