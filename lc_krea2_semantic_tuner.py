@@ -3,7 +3,7 @@ LC Krea2 Semantic Vector Tuner
 -------------------------------
 Single-model weight amplifier/attenuator, not a merge — one MODEL in, the
 same MODEL out with specific regions scaled up or down. Ported from the
-Arthemy SDXL Suite's ArthemySDXLModelTuner mechanism (same repo, same
+ArthemySDXLModelTuner mechanism of Arthemy's SDXL Suite (same repo, same
 ComfyUI instance): for each real weight tensor, bake any existing patches
 via comfy.lora.calculate_weight, scale the baked tensor by a per-region
 target multiplier, and add the difference back as a patch via

@@ -68,7 +68,7 @@ The Krea2 Block Merge Advanced for Anima: same curve, drag modes and preset savi
 
 ### LC Krea2 Semantic Vector Tuner
 
-Not a merge — this one takes a single checkpoint and turns specific regions up or down. Ported from the Arthemy SDXL Suite's `ArthemySDXLModelTuner` mechanism: it bakes any patches already on a weight, scales the baked tensor by a target multiplier, and re-patches the difference. Same proven patching approach, re-pointed at Krea2's real prefixes instead of SDXL's UNet layout.
+Not a merge — this one takes a single checkpoint and turns specific regions up or down. Ported from the `ArthemySDXLModelTuner` mechanism of Arthemy's SDXL Suite: it bakes any patches already on a weight, scales the baked tensor by a target multiplier, and re-patches the difference. Same proven patching approach, re-pointed at Krea2's real prefixes instead of SDXL's UNet layout.
 
 - **`mode`**: `Soft Value` dampens the 0-2 sliders so nothing above 1.0 overdrives past roughly 1.13x — safe for exploring. `Real Value` applies the slider as a literal multiplier.
 - **`low_blocks` / `mid_blocks` / `high_blocks`**: scale the same three zones (0-8 / 9-17 / 18-27) as Block Merge Advanced's graph. 💡 Krea2's 28 blocks are architecturally uniform — unlike SDXL's UNet, there's no verified evidence they specialize by depth, so this node doesn't invent named sub-groups the way Arthemy's SDXL tuner does. `blocks_override` (a 28-value comma list) is there if you want finer control than three zones.
@@ -324,7 +324,6 @@ Does every picture of a character dataset still look like her? Compares each fac
 - **InsightFace** by Jia Guo, Jiankang Deng and contributors: [github.com/deepinsight/insightface](https://github.com/deepinsight/insightface). The face detection decode and alignment in `lc_face_variety.py` follow InsightFace's own reference code (MIT).
 - **CCIP** by deepghs (OpenRAIL): [huggingface.co/deepghs/ccip_onnx](https://huggingface.co/deepghs/ccip_onnx), and the **anime face detector** by deepghs (MIT): [huggingface.co/deepghs/anime_face_detection](https://huggingface.co/deepghs/anime_face_detection). Used by the Anima Block Scan and the Face Variety Scorer's anime mode.
 - **llama.cpp** (ggml, MIT): [github.com/ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp). The GGUF K-quant quantizers in `lc_gguf_quants.py` are ported from its reference code (`ggml-quants.c`).
-- **ComfyUI_DiffusionModel_fp8_converter** by Shiba-2-shiba: [github.com/Shiba-2-shiba/ComfyUI_DiffusionModel_fp8_converter](https://github.com/Shiba-2-shiba/ComfyUI_DiffusionModel_fp8_converter), the idea of converting inside ComfyUI.
 - **ArcFace**: Deng et al., *ArcFace: Additive Angular Margin Loss for Deep Face Recognition*, CVPR 2019.
 - **SCRFD**: Guo et al., *Sample and Computation Redistribution for Efficient Face Detection*, 2021.
 

@@ -116,7 +116,8 @@ class Problem:
         for b, g in enumerate(self.G):
             w = W[b]
             fit = g["yy"] - 2 * (w @ g["My"]) - 2 * (c @ g["Ly"]) + w @ g["MM"] @ w + c @ g["LL"] @ c + 2 * (w @ g["ML"] @ c)
-            left[b] = max(0.0, float(fit))
+            # a non-finite fit (a broken fingerprint slipped in) is a failed fit, never a perfect one: max(0, nan) was 0
+            left[b] = max(0.0, float(fit)) if np.isfinite(fit) else g["yy"]
             lp[b] = float(c @ g["LL"] @ c)
         return W, c, left, lp
 

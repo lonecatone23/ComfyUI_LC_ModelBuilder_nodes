@@ -15,7 +15,6 @@ precision, the way released quants do. The model you wire in is never changed: e
 LoRA / merge patches baked in, is quantized on the GPU and written straight to disk, so memory use stays at about one
 layer. From a file it reads one tensor at a time, so a model bigger than your RAM still works.
 
-Idea from ComfyUI_DiffusionModel_fp8_converter (Shiba-2-shiba): convert inside ComfyUI from the file you already have.
 """
 
 from __future__ import annotations

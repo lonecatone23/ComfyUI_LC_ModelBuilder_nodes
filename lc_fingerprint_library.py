@@ -425,6 +425,8 @@ def fingerprint_file(path, device):
         sk, shp = {}, {}
         for name, d, s in _lora_deltas(path, mods, km):
             sk[name], shp[name] = sketch(name, d, device), list(s)
+        if sk and not _finite(sk):
+            return kind, fam, None, None, "its weights hold NaN / inf values (a broken LoRA): not added"
         return kind, fam, (sk or None), shp, ("" if sk else "no LoRA layers it can read (Tucker / conv-only LoRA)")
     if kind != "model":
         return kind, "", None, None, f"a {kind}, not a model or LoRA"
@@ -440,6 +442,8 @@ def fingerprint_file(path, device):
         sk[name], shp[name] = sketch(name, t, device), list(t.shape)
     if len(sk) < 40:  # a ControlNet patch or another partial file, not a whole model
         return kind, fam, None, None, f"only {len(sk)} layer{'s' if len(sk) != 1 else ''}: a partial file (ControlNet patch, adapter), not a whole model"
+    if not _finite(sk):
+        return kind, fam, None, None, "its weights hold NaN / inf values (a broken file): not added"
     try:
         build_keymap(path, fam)  # so this family's LoRAs, in any naming, line up with its layers
     except Exception as e:
@@ -481,6 +485,13 @@ def civitai_notes(found_lines, family):
     return out
 
 
+def _finite(sk):
+    return all(bool(torch.isfinite(v).all()) for v in sk.values())
+
+
+_SKIPPED_BROKEN = set()
+
+
 def load_entries(family=None, kind=None):
     out = []
     for src, e in _index().items():
@@ -490,7 +501,39 @@ def load_entries(family=None, kind=None):
         if not os.path.exists(p):
             continue
         sd = comfy.utils.load_torch_file(p, safe_load=True)
+        if not _finite(sd):  # one NaN fingerprint poisons every recipe it takes part in: leave it out
+            if e["name"] not in _SKIPPED_BROKEN:
+                _SKIPPED_BROKEN.add(e["name"])
+                print(f"[LC Fingerprint] skipping {e['name']}: its fingerprint holds NaN / inf values (rebuild it)")
+            continue
         out.append({**e, "source": src, "sketch": sd})
+    return out
+
+
+# a file's own name with its precision / format tags taken off: krea2_Turbo_Bf16 and krea2_turbo_fp8_scaled -> krea2turbo
+_PRECISION_TAGS = re.compile(r"(?<![a-z])(bf16|fp16|fp32|f16|f32|fp8|e4m3fn|e5m2|scaled|int8|int4|convrot|nvfp4|mxfp8|mxfp4|"
+                             r"w4a8|w6a8|w8a8|q[2-8](_k)?(_[sml])?|q8_0|gguf|pruned|fp8mixed)(?![a-z])", re.I)
+
+
+def stem(name):
+    s = re.sub(r"^\d{5,}_", "", name.lower())  # the downloader's version-id prefix
+    s = _PRECISION_TAGS.sub("", s)
+    return re.sub(r"[^a-z0-9]+", "", s)
+
+
+def copies_of(target, models):
+    """Library names that are the target model itself at another precision (or another copy of it): the same CivitAI
+    version, the same name once the precision tags are taken off, or near-identical weights. Earlier versions of the same
+    CivitAI model are NOT copies: they are its own lineage and stay in as ingredients."""
+    from . import lc_fingerprint_recipe as rc
+    tv = (target.get("civitai") or {}).get("version")
+    ts = stem(target["name"])
+    out = []
+    for e in models:
+        ev = (e.get("civitai") or {}).get("version")
+        if e is target or e["name"] == target["name"] or (tv and ev and tv == ev) or (ts and stem(e["name"]) == ts) \
+                or rc._rel95(e, target) < 0.004:
+            out.append(e["name"])
     return out
 
 
@@ -615,9 +658,9 @@ def identify_sketch(kind, family, sk, precision=("bf16", 0.0015)):
         return rc._rel95({"sketch": sk}, e) < allowed
     if same(scored[0][1]):  # the file itself (or a copy) is in the library: name it, then show how it was made
         lines.append(f"It is {scored[0][1]['name']} (in your library)" + (f", stored as {store}." if store != "bf16" else "."))
-        # leave out only it and its own copies at other precisions (at fp8 and lower every close relative clears the floor)
-        best = scored[0][1]
-        exclude = [e["name"] for _, e in scored if e is best or rc._same_model(e, best, rc._low_precision(e))]
+        # leave out only it and its own copies at other precisions. Not "everything within rounding distance": at fp8 every
+        # Krea 2 finetune is that close to every other, which hid most of a big library (2026-11-27).
+        exclude = copies_of(scored[0][1], models)
         lines.append("How it was made, from the rest of the library:")
     rest = [e for e in models if e["name"] not in exclude]
     if not rest:
